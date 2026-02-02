@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const Database = require('better-sqlite3');
+const crypto = require('crypto');
 const path = require('path');
 
 const app = express();
@@ -14,7 +15,9 @@ const db = new Database(dbPath);
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    nickname TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -50,36 +53,89 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id);
 `);
 
+// Password hashing
+const hashPassword = (password) => {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+};
+
+const verifyPassword = (password, stored) => {
+  const [salt, hash] = stored.split(':');
+  const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return hash === verifyHash;
+};
+
 app.use(cors());
 app.use(express.json());
 
 // Serve static files in production
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ============ USER ROUTES ============
+// ============ AUTH ROUTES ============
 
-// Register or get user
-app.post('/api/users', (req, res) => {
-  const { id, name } = req.body;
+// Register
+app.post('/api/auth/register', (req, res) => {
+  const { username, password, nickname } = req.body;
+  
+  if (!username || !password || !nickname) {
+    return res.status(400).json({ error: '모든 필드를 입력해주세요' });
+  }
+  
+  if (username.length < 4) {
+    return res.status(400).json({ error: '아이디는 4자 이상이어야 해요' });
+  }
+  
+  if (password.length < 4) {
+    return res.status(400).json({ error: '비밀번호는 4자 이상이어야 해요' });
+  }
   
   try {
-    const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
-    
+    const existing = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
     if (existing) {
-      return res.json(existing);
+      return res.status(400).json({ error: '이미 사용 중인 아이디예요' });
     }
     
-    db.prepare('INSERT INTO users (id, name) VALUES (?, ?)').run(id, name);
-    res.json({ id, name, created_at: new Date().toISOString() });
+    const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const passwordHash = hashPassword(password);
+    
+    db.prepare(
+      'INSERT INTO users (id, username, password_hash, nickname) VALUES (?, ?, ?, ?)'
+    ).run(id, username, passwordHash, nickname);
+    
+    res.json({ id, username, nickname });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// Login
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body;
+  
+  if (!username || !password) {
+    return res.status(400).json({ error: '아이디와 비밀번호를 입력해주세요' });
+  }
+  
+  try {
+    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    
+    if (!user || !verifyPassword(password, user.password_hash)) {
+      return res.status(401).json({ error: '아이디 또는 비밀번호가 틀렸어요' });
+    }
+    
+    res.json({ id: user.id, username: user.username, nickname: user.nickname });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ USER ROUTES ============
+
 // Get user by id
 app.get('/api/users/:id', (req, res) => {
   try {
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+    const user = db.prepare('SELECT id, username, nickname, created_at FROM users WHERE id = ?').get(req.params.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
   } catch (err) {
@@ -149,7 +205,7 @@ app.get('/api/rankings', (req, res) => {
     const rankings = db.prepare(`
       SELECT 
         users.id,
-        users.name,
+        users.nickname as name,
         COALESCE(SUM(items.price), 0) as total,
         COUNT(items.id) as item_count
       FROM users
@@ -239,7 +295,7 @@ app.get('/api/groups/:id', (req, res) => {
     const members = db.prepare(`
       SELECT 
         users.id,
-        users.name,
+        users.nickname as name,
         COALESCE(SUM(CASE 
           WHEN items.created_at >= date('now', 'weekday 0', '-7 days') 
           THEN items.price ELSE 0 END), 0) as weekly_total,
