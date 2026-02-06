@@ -28,7 +28,4 @@ COPY --from=frontend-build /app/frontend/dist ./public
 # Create data directory
 RUN mkdir -p /app/data
 
-# Railway uses PORT env var
-ENV PORT=3001
-
 CMD ["node", "server.js"]
