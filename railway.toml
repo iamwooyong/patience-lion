@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "npm run deploy"
+restartPolicyType = "always"
+
+[[mounts]]
+mountPath = "/app/backend/data"
+name = "patience-lion-data"

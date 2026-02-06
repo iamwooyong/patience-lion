@@ -1,0 +1,14 @@
+{
+  "name": "patience-lion",
+  "version": "1.0.0",
+  "description": "참고, 아낀 돈으로 주식 사자!",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "build": "cd frontend && npm run build && cp -r dist ../backend/public",
+    "start": "cd backend && npm start",
+    "deploy": "npm run build && npm run start"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
