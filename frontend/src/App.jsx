@@ -36,6 +36,7 @@ function App() {
   const [newGroupName, setNewGroupName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [hallOfFame, setHallOfFame] = useState([]);
 
   useEffect(() => {
     const stored = localStorage.getItem('patience-lion-user');
@@ -94,6 +95,17 @@ function App() {
   useEffect(() => {
     if (user && currentView === 'ranking') loadRankings();
   }, [user, currentView, rankingTab, loadRankings]);
+
+  const loadHallOfFame = useCallback(async () => {
+    try {
+      const data = await api.get('/hall-of-fame');
+      setHallOfFame(data);
+    } catch (e) { console.error(e); }
+  }, []);
+
+  useEffect(() => {
+    if (user && currentView === 'ranking') loadHallOfFame();
+  }, [user, currentView, loadHallOfFame]);
 
   const loadGroups = useCallback(async () => {
     if (!user) return;
@@ -291,6 +303,43 @@ function App() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Hall of Fame */}
+            <div className="bg-white rounded-2xl shadow-lg p-4">
+              <h2 className="font-bold text-gray-700 mb-3">🏆 명예의 전당</h2>
+              {hallOfFame.length === 0 ? (
+                <p className="text-center text-gray-400 py-6">아직 기록이 없어요</p>
+              ) : (
+                <div className="space-y-3">
+                  {['week', 'month'].map(type => {
+                    const records = hallOfFame.filter(r => r.period_type === type);
+                    if (records.length === 0) return null;
+                    return (
+                      <div key={type} className="border-b border-gray-100 pb-3 last:border-0">
+                        <h3 className="text-sm font-bold text-gray-600 mb-2">
+                          {type === 'week' ? '🥇 주간 챔피언' : '👑 월간 챔피언'}
+                        </h3>
+                        <div className="space-y-2">
+                          {records.slice(0, 3).map(record => (
+                            <div key={record.id} className="bg-gradient-to-r from-yellow-50 to-orange-50 p-3 rounded-xl">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-bold text-amber-700">{record.user_name}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {new Date(record.period_start).toLocaleDateString('ko-KR')} ~ {new Date(record.period_end).toLocaleDateString('ko-KR')}
+                                  </p>
+                                </div>
+                                <span className="text-lg font-bold text-amber-600">₩{formatPrice(record.total_amount)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}

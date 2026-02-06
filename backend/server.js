@@ -53,9 +53,23 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 
+  CREATE TABLE IF NOT EXISTS hall_of_fame (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    period_type TEXT NOT NULL,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    user_id TEXT NOT NULL,
+    user_name TEXT NOT NULL,
+    total_amount INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(period_type, period_start),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_items_user ON items(user_id);
   CREATE INDEX IF NOT EXISTS idx_items_date ON items(created_at);
   CREATE INDEX IF NOT EXISTS idx_group_members_group ON group_members(group_id);
+  CREATE INDEX IF NOT EXISTS idx_hall_of_fame_period ON hall_of_fame(period_type, period_start);
 `);
 
 // Password hashing
@@ -223,6 +237,88 @@ app.get('/api/rankings', (req, res) => {
     `).all();
     
     res.json(rankings);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============ HALL OF FAME ROUTES ============
+
+// Get hall of fame records
+app.get('/api/hall-of-fame', (req, res) => {
+  try {
+    const records = db.prepare(`
+      SELECT * FROM hall_of_fame
+      ORDER BY period_start DESC
+      LIMIT 50
+    `).all();
+
+    res.json(records);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Save current period winner (called manually or by scheduler)
+app.post('/api/hall-of-fame/save', (req, res) => {
+  const { period_type } = req.body; // 'week' or 'month'
+
+  try {
+    let periodStart, periodEnd, dateFilter;
+
+    if (period_type === 'week') {
+      // Last week: Monday to Sunday
+      periodStart = db.prepare("SELECT date('now', 'weekday 0', '-14 days')").pluck().get();
+      periodEnd = db.prepare("SELECT date('now', 'weekday 0', '-8 days')").pluck().get();
+      dateFilter = `AND items.created_at >= date('${periodStart}') AND items.created_at < date('${periodEnd}')`;
+    } else if (period_type === 'month') {
+      // Last month
+      periodStart = db.prepare("SELECT date('now', 'start of month', '-1 month')").pluck().get();
+      periodEnd = db.prepare("SELECT date('now', 'start of month')").pluck().get();
+      dateFilter = `AND items.created_at >= date('${periodStart}') AND items.created_at < date('${periodEnd}')`;
+    } else {
+      return res.status(400).json({ error: 'Invalid period_type' });
+    }
+
+    // Get winner
+    const winner = db.prepare(`
+      SELECT
+        users.id,
+        users.nickname as name,
+        COALESCE(SUM(items.price), 0) as total
+      FROM users
+      LEFT JOIN items ON users.id = items.user_id ${dateFilter}
+      GROUP BY users.id
+      HAVING total > 0
+      ORDER BY total DESC
+      LIMIT 1
+    `).get();
+
+    if (!winner) {
+      return res.json({ message: 'No winner for this period' });
+    }
+
+    // Check if already exists
+    const existing = db.prepare(
+      'SELECT * FROM hall_of_fame WHERE period_type = ? AND period_start = ?'
+    ).get(period_type, periodStart);
+
+    if (existing) {
+      return res.json({ message: 'Already saved', record: existing });
+    }
+
+    // Save to hall of fame
+    const result = db.prepare(`
+      INSERT INTO hall_of_fame (period_type, period_start, period_end, user_id, user_name, total_amount)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(period_type, periodStart, periodEnd, winner.id, winner.name, winner.total);
+
+    res.json({
+      success: true,
+      id: result.lastInsertRowid,
+      winner: winner,
+      period: { type: period_type, start: periodStart, end: periodEnd }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
