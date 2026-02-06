@@ -3,3 +3,7 @@ builder = "nixpacks"
 
 [deploy]
 restartPolicyType = "always"
+
+# Volume for SQLite database persistence
+[[deploy.volumes]]
+mountPath = "/app/backend/data"
