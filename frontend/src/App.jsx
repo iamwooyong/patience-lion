@@ -276,7 +276,7 @@ function App() {
             <div className="bg-white rounded-2xl shadow-lg p-4">
               <h2 className="font-bold text-gray-700 mb-3">🏆 전체 랭킹</h2>
               <div className="flex gap-2 mb-4">
-                {[{ key: 'week', label: '주간' }, { key: 'month', label: '월간' }, { key: 'all', label: '전체' }].map(t => (
+                {[{ key: 'day', label: '일간' }, { key: 'week', label: '주간' }, { key: 'month', label: '월간' }, { key: 'all', label: '전체' }].map(t => (
                   <button key={t.key} onClick={() => setRankingTab(t.key)} className={`flex-1 py-2 rounded-full text-sm font-medium ${rankingTab === t.key ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{t.label}</button>
                 ))}
               </div>

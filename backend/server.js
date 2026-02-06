@@ -197,10 +197,12 @@ app.delete('/api/items/:id', (req, res) => {
 
 // Get global rankings
 app.get('/api/rankings', (req, res) => {
-  const { period } = req.query; // 'week', 'month', 'all'
-  
+  const { period } = req.query; // 'day', 'week', 'month', 'all'
+
   let dateFilter = '';
-  if (period === 'week') {
+  if (period === 'day') {
+    dateFilter = "AND items.created_at >= date('now', 'start of day')";
+  } else if (period === 'week') {
     dateFilter = "AND items.created_at >= date('now', 'weekday 0', '-7 days')";
   } else if (period === 'month') {
     dateFilter = "AND items.created_at >= date('now', 'start of month')";
