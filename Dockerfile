@@ -10,14 +10,17 @@ RUN npm run build
 # Production stage - Backend + Static files
 FROM node:20-alpine
 
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
 WORKDIR /app
 
 # Install backend dependencies
 COPY backend/package*.json ./
-RUN npm install --production
+RUN npm install
 
 # Copy backend code
-COPY backend/server.js ./
+COPY backend/ ./
 
 # Copy frontend build
 COPY --from=frontend-build /app/frontend/dist ./public
@@ -25,6 +28,7 @@ COPY --from=frontend-build /app/frontend/dist ./public
 # Create data directory
 RUN mkdir -p /app/data
 
-EXPOSE 3001
+# Railway uses PORT env var
+ENV PORT=3001
 
 CMD ["node", "server.js"]
