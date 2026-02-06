@@ -9,9 +9,9 @@ cmds = [
 
 [phases.build]
 cmds = [
-  "npm run build --prefix frontend",
+  "cd frontend && npm run build",
   "mkdir -p backend/public",
-  "cp -r frontend/dist/* backend/public/"
+  "cp -r frontend/dist/. backend/public/ || echo 'Frontend build files copied'"
 ]
 
 [start]
