@@ -378,7 +378,31 @@ app.get('/api/groups/:id', async (req, res) => {
       ORDER BY weekly_total DESC
     `, [req.params.id]);
 
-    res.json({ ...group, members });
+    // 지난주 우승자
+    const lastWeekWinner = await queryOne(`
+      SELECT
+        users.id,
+        users.nickname as name,
+        COALESCE(SUM(items.price), 0) as total
+      FROM group_members
+      JOIN users ON group_members.user_id = users.id
+      JOIN items ON users.id = items.user_id
+      WHERE group_members.group_id = $1
+        AND items.created_at >= (date_trunc('week', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul' - INTERVAL '7 days')
+        AND items.created_at < (date_trunc('week', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul')
+      GROUP BY users.id, users.nickname
+      HAVING COALESCE(SUM(items.price), 0) > 0
+      ORDER BY total DESC
+      LIMIT 1
+    `, [req.params.id]);
+
+    // 지난주 월~일 날짜 계산
+    const lastWeek = lastWeekWinner ? {
+      winner: lastWeekWinner.name,
+      total: lastWeekWinner.total,
+    } : null;
+
+    res.json({ ...group, members, lastWeek });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -415,7 +415,23 @@ function App() {
                   <button onClick={() => shareGroup(selectedGroup.code)} className="flex-1 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium">📤 공유하기</button>
                 </div>
               </div>
-              <p className="text-sm text-gray-500 mb-3">🏆 주간 대결 (월~일)</p>
+              {selectedGroup.lastWeek && (() => {
+                const now = new Date();
+                const today = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+                const day = today.getDay();
+                const mondayOffset = day === 0 ? 6 : day - 1;
+                const lastSun = new Date(today); lastSun.setDate(today.getDate() - mondayOffset - 1);
+                const lastMon = new Date(lastSun); lastMon.setDate(lastSun.getDate() - 6);
+                const fmt = (d) => `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
+                return (
+                  <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-4 mb-4 text-center">
+                    <p className="text-xs text-gray-500 mb-1">지난주 ({fmt(lastMon)} ~ {fmt(lastSun)})</p>
+                    <p className="text-lg font-bold text-amber-700">우승 {selectedGroup.lastWeek.winner}</p>
+                    <p className="text-sm text-amber-600">₩{formatPrice(selectedGroup.lastWeek.total)} 절약!</p>
+                  </div>
+                );
+              })()}
+              <p className="text-sm text-gray-500 mb-3">이번 주 대결 (월~일)</p>
               <div className="space-y-2">
                 {(selectedGroup.members || []).map((m, idx) => (
                   <div key={m.id} className={`flex items-center justify-between p-3 rounded-xl ${m.id === user.id ? 'bg-amber-100 border-2 border-amber-400' : 'bg-gray-50'}`}>
