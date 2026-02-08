@@ -367,12 +367,12 @@ app.get('/api/groups/:id', async (req, res) => {
         COALESCE(SUM(CASE
           WHEN ${weekDateCondition}
           THEN items.price ELSE 0 END), 0) as weekly_total,
-        group_members.joined_at
+        MAX(group_members.joined_at) as joined_at
       FROM group_members
       JOIN users ON group_members.user_id = users.id
       LEFT JOIN items ON users.id = items.user_id
       WHERE group_members.group_id = $1
-      GROUP BY users.id
+      GROUP BY users.id, users.nickname
       ORDER BY weekly_total DESC
     `, [req.params.id]);
 
