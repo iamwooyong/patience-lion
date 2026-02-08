@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const path = require('path');
+const https = require('https');
 const { initializeTables, query, queryOne, execute } = require('./db');
 
 const app = express();
@@ -439,38 +440,54 @@ const STOCKS = [
 let stockCache = { data: null, updatedAt: 0 };
 const STOCK_CACHE_TTL = 5 * 60 * 1000; // 5분 캐시
 
+function httpsGet(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+      }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(new Error(`JSON parse error: ${data.substring(0, 200)}`)); }
+      });
+    }).on('error', reject);
+  });
+}
+
+async function fetchOneStock(symbol) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+  const json = await httpsGet(url);
+  const meta = json.chart?.result?.[0]?.meta;
+  return meta?.regularMarketPrice || 0;
+}
+
 async function fetchStockPrices() {
   const now = Date.now();
   if (stockCache.data && now - stockCache.updatedAt < STOCK_CACHE_TTL) {
     return stockCache.data;
   }
 
-  const symbols = STOCKS.map(s => s.symbol).join(',');
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
-
   try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
-    const json = await res.json();
-    const quotes = json.quoteResponse?.result || [];
+    const prices = await Promise.all(STOCKS.map(s => fetchOneStock(s.symbol).catch(() => 0)));
 
-    const result = STOCKS.map(stock => {
-      const quote = quotes.find(q => q.symbol === stock.symbol);
-      return {
-        symbol: stock.symbol,
-        name: stock.name,
-        price: quote?.regularMarketPrice || 0,
-        currency: stock.currency,
-        change: quote?.regularMarketChangePercent || 0,
-      };
-    });
+    const result = STOCKS.map((stock, i) => ({
+      symbol: stock.symbol,
+      name: stock.name,
+      price: prices[i],
+      currency: stock.currency,
+    }));
 
-    stockCache = { data: result, updatedAt: now };
+    if (prices.some(p => p > 0)) {
+      stockCache = { data: result, updatedAt: now };
+    }
     return result;
   } catch (err) {
     console.error('Stock fetch error:', err.message);
-    return stockCache.data || STOCKS.map(s => ({ ...s, price: 0, change: 0 }));
+    return stockCache.data || STOCKS.map(s => ({ ...s, price: 0 }));
   }
 }
 
