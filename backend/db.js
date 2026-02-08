@@ -69,6 +69,11 @@ async function initializeTables() {
     CREATE INDEX IF NOT EXISTS idx_hall_of_fame_period ON hall_of_fame(period_type, period_start);
   `);
 
+  // 기존 회원 데이터 초기화 (일회성 - 배포 후 제거)
+  await db.query('TRUNCATE users CASCADE');
+  await db.query('TRUNCATE verification_codes');
+  console.log('🗑️ 기존 회원 데이터 초기화 완료');
+
   // Email auth migration
   await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`);
   await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT false`);
