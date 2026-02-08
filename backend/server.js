@@ -358,15 +358,16 @@ app.get('/api/groups/:id', async (req, res) => {
     const group = await queryOne('SELECT * FROM groups WHERE id = $1', [req.params.id]);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    const weekDateCondition = "items.created_at >= (now() - INTERVAL '7 days')";
-
     const members = await query(`
       SELECT
         users.id,
         users.nickname as name,
         COALESCE(SUM(CASE
-          WHEN ${weekDateCondition}
+          WHEN items.created_at >= date_trunc('week', now())
           THEN items.price ELSE 0 END), 0) as weekly_total,
+        COUNT(CASE
+          WHEN items.created_at >= date_trunc('week', now())
+          THEN 1 END) as weekly_count,
         MAX(group_members.joined_at) as joined_at
       FROM group_members
       JOIN users ON group_members.user_id = users.id

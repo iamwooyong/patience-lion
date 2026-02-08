@@ -184,9 +184,10 @@ function App() {
   };
 
   const shareGroup = async (code) => {
-    const text = `참고 사자에서 같이 절약 경쟁하자!\n그룹 참여 코드: ${code}`;
+    const url = 'https://patience-lion-production-2a35.up.railway.app/';
+    const text = `참고 사자에서 같이 절약 경쟁하자!\n\n그룹 참여 코드: ${code}\n접속: ${url}`;
     if (navigator.share) {
-      try { await navigator.share({ title: '참고 사자 그룹 초대', text }); } catch {}
+      try { await navigator.share({ title: '참고 사자 그룹 초대', text, url }); } catch {}
     } else {
       navigator.clipboard?.writeText(text);
       alert('초대 메시지가 복사됨!');
@@ -398,13 +399,16 @@ function App() {
                   <button onClick={() => shareGroup(selectedGroup.code)} className="flex-1 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium">📤 공유하기</button>
                 </div>
               </div>
-              <p className="text-sm text-gray-500 mb-3">🏆 이번 주 순위</p>
+              <p className="text-sm text-gray-500 mb-3">🏆 주간 대결 (월~일)</p>
               <div className="space-y-2">
                 {(selectedGroup.members || []).map((m, idx) => (
                   <div key={m.id} className={`flex items-center justify-between p-3 rounded-xl ${m.id === user.id ? 'bg-amber-100 border-2 border-amber-400' : 'bg-gray-50'}`}>
                     <div className="flex items-center gap-3">
                       <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-yellow-400 text-white' : idx === 1 ? 'bg-gray-300 text-white' : idx === 2 ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-600'}`}>{idx + 1}</span>
-                      <span className="font-medium">{m.name} {m.id === user.id && '(나)'}</span>
+                      <div>
+                        <span className="font-medium">{m.name} {m.id === user.id && '(나)'}</span>
+                        <p className="text-xs text-gray-400">{m.weekly_count || 0}번 참음</p>
+                      </div>
                     </div>
                     <span className="font-bold text-amber-600">₩{formatPrice(m.weekly_total)}</span>
                   </div>
