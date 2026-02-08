@@ -382,6 +382,25 @@ app.get('/api/groups/:id', async (req, res) => {
   }
 });
 
+// Delete group (creator only)
+app.delete('/api/groups/:groupId', async (req, res) => {
+  const { groupId } = req.params;
+  const { user_id } = req.body;
+
+  try {
+    const group = await queryOne('SELECT * FROM groups WHERE id = $1', [groupId]);
+    if (!group) return res.status(404).json({ error: '그룹을 찾을 수 없어요' });
+    if (group.created_by !== user_id) return res.status(403).json({ error: '방장만 삭제할 수 있어요' });
+
+    await execute('DELETE FROM group_members WHERE group_id = $1', [groupId]);
+    await execute('DELETE FROM groups WHERE id = $1', [groupId]);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Leave group
 app.delete('/api/groups/:groupId/members/:userId', async (req, res) => {
   const { groupId, userId } = req.params;

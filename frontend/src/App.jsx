@@ -174,6 +174,25 @@ function App() {
     } catch (e) { alert('나가기 실패: ' + e.message); }
   };
 
+  const deleteGroup = async (groupId) => {
+    if (!confirm('정말 이 그룹을 삭제하시겠어요? 모든 멤버가 제거됩니다.')) return;
+    try {
+      await api.fetch(`/groups/${groupId}`, { method: 'DELETE', body: JSON.stringify({ user_id: user.id }) });
+      setMyGroups(myGroups.filter(g => g.id !== groupId));
+      setSelectedGroup(null);
+    } catch (e) { alert('삭제 실패: ' + e.message); }
+  };
+
+  const shareGroup = async (code) => {
+    const text = `참고 사자에서 같이 절약 경쟁하자!\n그룹 참여 코드: ${code}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: '참고 사자 그룹 초대', text }); } catch {}
+    } else {
+      navigator.clipboard?.writeText(text);
+      alert('초대 메시지가 복사됨!');
+    }
+  };
+
   const getFilteredItems = () => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -370,9 +389,14 @@ function App() {
           <div className="space-y-4">
             <button onClick={() => setSelectedGroup(null)} className="text-gray-500 text-sm">← 그룹 목록</button>
             <div className="bg-white rounded-2xl shadow-lg p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div><h2 className="font-bold text-gray-700 text-lg">{selectedGroup.name}</h2><p className="text-xs text-gray-400">코드: {selectedGroup.code}</p></div>
-                <button onClick={() => { navigator.clipboard?.writeText(selectedGroup.code); alert('복사됨!'); }} className="px-3 py-1 bg-gray-100 rounded-full text-sm">📋</button>
+              <h2 className="font-bold text-gray-700 text-lg mb-3">{selectedGroup.name}</h2>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+                <p className="text-xs text-gray-500 mb-1 text-center">초대 코드</p>
+                <p className="text-2xl font-bold text-amber-600 text-center tracking-[0.3em]">{selectedGroup.code}</p>
+                <div className="flex gap-2 mt-3">
+                  <button onClick={() => { navigator.clipboard?.writeText(selectedGroup.code); alert('코드 복사됨!'); }} className="flex-1 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700">📋 코드 복사</button>
+                  <button onClick={() => shareGroup(selectedGroup.code)} className="flex-1 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium">📤 공유하기</button>
+                </div>
               </div>
               <p className="text-sm text-gray-500 mb-3">🏆 이번 주 순위</p>
               <div className="space-y-2">
@@ -386,7 +410,12 @@ function App() {
                   </div>
                 ))}
               </div>
-              <button onClick={() => leaveGroup(selectedGroup.id)} className="w-full mt-4 py-2 text-red-500 text-sm">그룹 나가기</button>
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => leaveGroup(selectedGroup.id)} className="flex-1 py-2 text-gray-500 text-sm border border-gray-200 rounded-lg">그룹 나가기</button>
+                {selectedGroup.created_by === user.id && (
+                  <button onClick={() => deleteGroup(selectedGroup.id)} className="flex-1 py-2 text-red-500 text-sm border border-red-200 rounded-lg">그룹 삭제</button>
+                )}
+              </div>
             </div>
           </div>
         )}
