@@ -36,22 +36,28 @@ async function sendVerificationEmail(email, code, type) {
   const subject = type === 'register' ? '[참고 사자] 회원가입 인증번호' : '[참고 사자] 비밀번호 재설정 인증번호';
   const label = type === 'register' ? '회원가입' : '비밀번호 재설정';
   if (transporter) {
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: email,
-      subject,
-      text: `인증번호: ${code}\n\n5분 이내에 입력해주세요.`,
-      html: `
-        <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #f59e0b;">🦁 참고 사자</h2>
-          <p>${label} 인증번호입니다.</p>
-          <div style="background: #fef3c7; padding: 20px; border-radius: 12px; text-align: center; margin: 20px 0;">
-            <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #d97706;">${code}</span>
+    try {
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        to: email,
+        subject,
+        text: `인증번호: ${code}\n\n5분 이내에 입력해주세요.`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #f59e0b;">🦁 참고 사자</h2>
+            <p>${label} 인증번호입니다.</p>
+            <div style="background: #fef3c7; padding: 20px; border-radius: 12px; text-align: center; margin: 20px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #d97706;">${code}</span>
+            </div>
+            <p style="color: #666; font-size: 14px;">5분 이내에 입력해주세요.</p>
           </div>
-          <p style="color: #666; font-size: 14px;">5분 이내에 입력해주세요.</p>
-        </div>
-      `,
-    });
+        `,
+      });
+      console.log(`📧 이메일 전송 성공: ${email}`);
+    } catch (err) {
+      console.error(`📧 이메일 전송 실패: ${err.message}`);
+      throw new Error('이메일 전송에 실패했어요. SMTP 설정을 확인해주세요.');
+    }
   } else {
     console.log(`📧 [${type}] ${email} → 인증번호: ${code}`);
   }
