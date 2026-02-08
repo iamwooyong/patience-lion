@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const path = require('path');
-const https = require('https');
 const { initializeTables, query, queryOne, execute } = require('./db');
 
 const app = express();
@@ -637,31 +636,19 @@ const STOCKS = [
 ];
 
 let stockCache = { data: null, updatedAt: 0 };
-const STOCK_CACHE_TTL = 5 * 60 * 1000; // 5분 캐시
-
-function httpsGet(url) {
-  return new Promise((resolve, reject) => {
-    https.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-      }
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
-        catch (e) { reject(new Error(`JSON parse error: ${data.substring(0, 200)}`)); }
-      });
-    }).on('error', reject);
-  });
-}
+const STOCK_CACHE_TTL = 10 * 60 * 1000; // 10분 캐시
 
 async function fetchOneStock(symbol) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-  const json = await httpsGet(url);
-  const meta = json.chart?.result?.[0]?.meta;
-  return meta?.regularMarketPrice || 0;
+  const url = `https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  const price = json.chart?.result?.[0]?.meta?.regularMarketPrice || 0;
+  return price;
 }
 
 async function fetchStockPrices() {
@@ -671,7 +658,10 @@ async function fetchStockPrices() {
   }
 
   try {
-    const prices = await Promise.all(STOCKS.map(s => fetchOneStock(s.symbol).catch(() => 0)));
+    const prices = await Promise.all(STOCKS.map(s => fetchOneStock(s.symbol).catch(err => {
+      console.error(`Stock ${s.symbol} fetch error: ${err.message}`);
+      return 0;
+    })));
 
     const result = STOCKS.map((stock, i) => ({
       symbol: stock.symbol,
