@@ -196,10 +196,9 @@ function App() {
   };
 
   const shareGroup = async (code) => {
-    const url = 'https://patience-lion-production-2a35.up.railway.app/';
-    const text = `참고 사자에서 같이 절약 경쟁하자!\n\n그룹 참여 코드: ${code}\n접속: ${url}`;
+    const text = `참고 사자에서 같이 절약 경쟁하자!\n\n접속 주소:\nhttps://patience-lion-production-2a35.up.railway.app/\n\n그룹 참여 코드: ${code}\n\n가입 후 그룹 탭에서 "코드로 참여" 누르고 위 코드 입력하면 돼!`;
     if (navigator.share) {
-      try { await navigator.share({ title: '참고 사자 그룹 초대', text, url }); } catch {}
+      try { await navigator.share({ title: '참고 사자 그룹 초대', text }); } catch {}
     } else {
       navigator.clipboard?.writeText(text);
       alert('초대 메시지가 복사됨!');
