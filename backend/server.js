@@ -103,12 +103,6 @@ app.post('/api/auth/send-code', async (req, res) => {
       if (!existing) return res.status(400).json({ error: '가입되지 않은 이메일이에요' });
     }
 
-    const recent = await queryOne(
-      "SELECT * FROM verification_codes WHERE email = $1 AND type = $2 AND created_at > NOW() - INTERVAL '1 minute' AND used = false",
-      [email, type]
-    );
-    if (recent) return res.status(429).json({ error: '1분 후에 다시 시도해주세요' });
-
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     await execute(
       "INSERT INTO verification_codes (email, code, type, expires_at) VALUES ($1, $2, $3, NOW() + INTERVAL '5 minutes')",
