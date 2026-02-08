@@ -428,6 +428,61 @@ app.delete('/api/groups/:groupId/members/:userId', async (req, res) => {
   }
 });
 
+// ============ STOCKS ROUTES ============
+
+const STOCKS = [
+  { symbol: '005930.KS', name: '삼성전자', currency: 'KRW' },
+  { symbol: 'UBER', name: '우버', currency: 'USD' },
+  { symbol: 'TSLL', name: 'TSLL', currency: 'USD' },
+];
+
+let stockCache = { data: null, updatedAt: 0 };
+const STOCK_CACHE_TTL = 5 * 60 * 1000; // 5분 캐시
+
+async function fetchStockPrices() {
+  const now = Date.now();
+  if (stockCache.data && now - stockCache.updatedAt < STOCK_CACHE_TTL) {
+    return stockCache.data;
+  }
+
+  const symbols = STOCKS.map(s => s.symbol).join(',');
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+    const json = await res.json();
+    const quotes = json.quoteResponse?.result || [];
+
+    const result = STOCKS.map(stock => {
+      const quote = quotes.find(q => q.symbol === stock.symbol);
+      return {
+        symbol: stock.symbol,
+        name: stock.name,
+        price: quote?.regularMarketPrice || 0,
+        currency: stock.currency,
+        change: quote?.regularMarketChangePercent || 0,
+      };
+    });
+
+    stockCache = { data: result, updatedAt: now };
+    return result;
+  } catch (err) {
+    console.error('Stock fetch error:', err.message);
+    return stockCache.data || STOCKS.map(s => ({ ...s, price: 0, change: 0 }));
+  }
+}
+
+app.get('/api/stocks', async (req, res) => {
+  try {
+    const stocks = await fetchStockPrices();
+    res.json(stocks);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

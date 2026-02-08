@@ -37,6 +37,8 @@ function App() {
   const [joinCode, setJoinCode] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [hallOfFame, setHallOfFame] = useState([]);
+  const [stocks, setStocks] = useState([]);
+  const [stockIndex, setStockIndex] = useState(0);
 
   useEffect(() => {
     const stored = localStorage.getItem('patience-lion-user');
@@ -106,6 +108,16 @@ function App() {
   useEffect(() => {
     if (user && currentView === 'ranking') loadHallOfFame();
   }, [user, currentView, loadHallOfFame]);
+
+  useEffect(() => {
+    api.get('/stocks').then(setStocks).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (stocks.length <= 1) return;
+    const timer = setInterval(() => setStockIndex(i => (i + 1) % stocks.length), 5000);
+    return () => clearInterval(timer);
+  }, [stocks.length]);
 
   const loadGroups = useCallback(async () => {
     if (!user) return;
@@ -209,12 +221,7 @@ function App() {
 
   const filteredItems = getFilteredItems();
   const totalSaved = filteredItems.reduce((sum, item) => sum + item.price, 0);
-  const stocks = [
-    { name: '삼성전자', price: 55000, emoji: '📱' },
-    { name: 'KODEX 200', price: 35000, emoji: '📈' },
-    { name: '카카오', price: 40000, emoji: '💬' },
-  ];
-  const getAffordableStocks = () => stocks.map(s => ({ ...s, shares: Math.floor(totalSaved / s.price) })).filter(s => s.shares > 0);
+  const currentStock = stocks[stockIndex];
   const formatPrice = (p) => (p || 0).toLocaleString('ko-KR');
   const tabLabels = { today: '오늘', week: '이번 주', month: '이번 달' };
   const getMyRank = () => { const idx = rankings.findIndex(r => r.id === user?.id); return idx >= 0 ? idx + 1 : null; };
@@ -277,11 +284,21 @@ function App() {
                 <p className="text-4xl font-bold text-amber-600">₩{formatPrice(totalSaved)}</p>
                 <p className="text-gray-400 text-sm mt-1">{filteredItems.length}번 참았어요!</p>
               </div>
-              {totalSaved > 0 && getAffordableStocks().length > 0 && (
+              {totalSaved > 0 && currentStock && currentStock.price > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-sm text-gray-500 mb-2">살 수 있는 주식</p>
-                  <div className="flex flex-wrap gap-2">
-                    {getAffordableStocks().map(s => <div key={s.name} className="bg-green-50 px-3 py-1 rounded-full text-sm">{s.emoji} {s.name} <span className="font-bold text-green-600">{s.shares}주</span></div>)}
+                  <div className="bg-green-50 rounded-xl p-4 text-center transition-all">
+                    <p className="text-xs text-gray-500 mb-1">
+                      {currentStock.name} (현재가 {currentStock.currency === 'KRW' ? `₩${formatPrice(currentStock.price)}` : `$${currentStock.price.toFixed(2)}`})
+                    </p>
+                    <p className="text-xl font-bold text-green-600">
+                      {(currentStock.currency === 'KRW' ? totalSaved / currentStock.price : totalSaved / (currentStock.price * 1450)).toFixed(3)}주
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">{currentStock.name} 살 수 있어요!</p>
+                    <div className="flex justify-center gap-1 mt-2">
+                      {stocks.map((_, i) => (
+                        <span key={i} className={`w-1.5 h-1.5 rounded-full ${i === stockIndex ? 'bg-green-500' : 'bg-gray-300'}`} />
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
