@@ -37,7 +37,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Register
 app.post('/api/auth/register', async (req, res) => {
-  const { username, password, nickname } = req.body;
+  const { username, password, nickname, groupCode } = req.body;
 
   if (!username || !password || !nickname) {
     return res.status(400).json({ error: '모든 필드를 입력해주세요' });
@@ -65,7 +65,17 @@ app.post('/api/auth/register', async (req, res) => {
       [id, username, passwordHash, nickname]
     );
 
-    res.json({ id, username, nickname });
+    // 그룹 코드가 있으면 자동 참여
+    let joinedGroup = null;
+    if (groupCode && groupCode.trim()) {
+      const group = await queryOne('SELECT * FROM groups WHERE code = $1', [groupCode.trim().toUpperCase()]);
+      if (group) {
+        await execute('INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)', [group.id, id]);
+        joinedGroup = { id: group.id, name: group.name };
+      }
+    }
+
+    res.json({ id, username, nickname, joinedGroup });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -100,6 +110,20 @@ app.get('/api/users/:id', async (req, res) => {
     const user = await queryOne('SELECT id, username, nickname, created_at FROM users WHERE id = $1', [req.params.id]);
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update nickname
+app.patch('/api/users/:id/nickname', async (req, res) => {
+  const { nickname } = req.body;
+  if (!nickname || !nickname.trim()) {
+    return res.status(400).json({ error: '닉네임을 입력해주세요' });
+  }
+  try {
+    await execute('UPDATE users SET nickname = $1 WHERE id = $2', [nickname.trim(), req.params.id]);
+    res.json({ id: req.params.id, nickname: nickname.trim() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

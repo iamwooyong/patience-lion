@@ -14,13 +14,14 @@ const api = {
   },
   get: (endpoint) => api.fetch(endpoint),
   post: (endpoint, data) => api.fetch(endpoint, { method: 'POST', body: JSON.stringify(data) }),
+  patch: (endpoint, data) => api.fetch(endpoint, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (endpoint) => api.fetch(endpoint, { method: 'DELETE' }),
 };
 
 function App() {
   const [user, setUser] = useState(null);
   const [authMode, setAuthMode] = useState('login');
-  const [authForm, setAuthForm] = useState({ username: '', password: '', nickname: '' });
+  const [authForm, setAuthForm] = useState({ username: '', password: '', nickname: '', groupCode: '' });
   const [authError, setAuthError] = useState('');
   const [items, setItems] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -39,6 +40,8 @@ function App() {
   const [hallOfFame, setHallOfFame] = useState([]);
   const [stocks, setStocks] = useState([]);
   const [stockIndex, setStockIndex] = useState(0);
+  const [showNicknameModal, setShowNicknameModal] = useState(false);
+  const [newNickname, setNewNickname] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('patience-lion-user');
@@ -72,11 +75,19 @@ function App() {
   const handleRegister = async () => {
     setAuthError('');
     try {
-      const userData = await api.post('/auth/register', authForm);
+      const userData = await api.post('/auth/register', {
+        username: authForm.username,
+        password: authForm.password,
+        nickname: authForm.nickname,
+        groupCode: authForm.groupCode,
+      });
       localStorage.setItem('patience-lion-user', JSON.stringify(userData));
       setUser(userData);
       setItems([]);
       setIsLoading(false);
+      if (userData.joinedGroup) {
+        alert(`"${userData.joinedGroup.name}" 그룹에 자동 참여됐어요!`);
+      }
     } catch (e) { setAuthError(e.message); }
   };
 
@@ -84,7 +95,19 @@ function App() {
     localStorage.removeItem('patience-lion-user');
     setUser(null);
     setItems([]);
-    setAuthForm({ username: '', password: '', nickname: '' });
+    setAuthForm({ username: '', password: '', nickname: '', groupCode: '' });
+  };
+
+  const changeNickname = async () => {
+    if (!newNickname.trim()) return;
+    try {
+      const result = await api.patch(`/users/${user.id}/nickname`, { nickname: newNickname.trim() });
+      const updated = { ...user, nickname: result.nickname };
+      setUser(updated);
+      localStorage.setItem('patience-lion-user', JSON.stringify(updated));
+      setShowNicknameModal(false);
+      setNewNickname('');
+    } catch (e) { alert('변경 실패: ' + e.message); }
   };
 
   const loadRankings = useCallback(async () => {
@@ -246,7 +269,10 @@ function App() {
         <div className="space-y-3">
           <input type="text" value={authForm.username} onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })} placeholder="아이디" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" />
           <input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} placeholder="비밀번호" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" onKeyPress={(e) => e.key === 'Enter' && authMode === 'login' && handleLogin()} />
-          {authMode === 'register' && <input type="text" value={authForm.nickname} onChange={(e) => setAuthForm({ ...authForm, nickname: e.target.value })} placeholder="닉네임 (랭킹에 표시)" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" onKeyPress={(e) => e.key === 'Enter' && handleRegister()} />}
+          {authMode === 'register' && <>
+            <input type="text" value={authForm.nickname} onChange={(e) => setAuthForm({ ...authForm, nickname: e.target.value })} placeholder="닉네임 (랭킹에 표시)" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            <input type="text" value={authForm.groupCode} onChange={(e) => setAuthForm({ ...authForm, groupCode: e.target.value.toUpperCase() })} placeholder="그룹 참여코드 (선택)" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-center tracking-widest" maxLength={6} onKeyPress={(e) => e.key === 'Enter' && handleRegister()} />
+          </>}
         </div>
         {authError && <p className="text-red-500 text-sm mt-3 text-center">{authError}</p>}
         <button onClick={authMode === 'login' ? handleLogin : handleRegister} className="w-full mt-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold">{authMode === 'login' ? '로그인' : '가입하기'}</button>
@@ -264,6 +290,7 @@ function App() {
           </div>
           <div className="flex items-center gap-2">
             {getMyRank() && <div className="bg-white/20 px-3 py-1 rounded-full text-sm">🏆 {getMyRank()}위</div>}
+            <button onClick={() => { setNewNickname(user.nickname); setShowNicknameModal(true); }} className="bg-white/20 px-3 py-1 rounded-full text-sm">닉네임</button>
             <button onClick={handleLogout} className="bg-white/20 px-3 py-1 rounded-full text-sm">로그아웃</button>
           </div>
         </div>
@@ -507,6 +534,19 @@ function App() {
             <div className="flex gap-2">
               <button onClick={() => { setShowJoinGroup(false); setJoinCode(''); }} className="flex-1 py-3 rounded-xl bg-gray-100">취소</button>
               <button onClick={joinGroup} disabled={joinCode.length < 6} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white disabled:opacity-50">참여하기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNicknameModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+            <h2 className="text-xl font-bold text-gray-700 mb-4 text-center">✏️ 닉네임 변경</h2>
+            <input type="text" value={newNickname} onChange={(e) => setNewNickname(e.target.value)} placeholder="새 닉네임" className="w-full p-3 border rounded-xl mb-4" autoFocus onKeyPress={(e) => e.key === 'Enter' && changeNickname()} />
+            <div className="flex gap-2">
+              <button onClick={() => { setShowNicknameModal(false); setNewNickname(''); }} className="flex-1 py-3 rounded-xl bg-gray-100">취소</button>
+              <button onClick={changeNickname} disabled={!newNickname.trim() || newNickname.trim() === user.nickname} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white disabled:opacity-50">변경하기</button>
             </div>
           </div>
         </div>
