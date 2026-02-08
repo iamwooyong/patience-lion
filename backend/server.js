@@ -159,11 +159,11 @@ app.get('/api/rankings', async (req, res) => {
 
   let dateFilter = '';
   if (period === 'day') {
-    dateFilter = "AND items.created_at >= date('now', 'start of day')";
+    dateFilter = "AND items.created_at >= date_trunc('day', now())";
   } else if (period === 'week') {
-    dateFilter = "AND items.created_at >= date('now', 'weekday 0', '-7 days')";
+    dateFilter = "AND items.created_at >= (now() - INTERVAL '7 days')";
   } else if (period === 'month') {
-    dateFilter = "AND items.created_at >= date('now', 'start of month')";
+    dateFilter = "AND items.created_at >= date_trunc('month', now())";
   }
 
   try {
@@ -210,19 +210,29 @@ app.post('/api/hall-of-fame/save', async (req, res) => {
   try {
     let periodStart, periodEnd, dateFilter;
 
+    // Compute period boundaries in JS (works for both SQLite and Postgres)
+    const formatDate = (d) => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
     if (period_type === 'week') {
-      // Last week: Monday to Sunday
-      const startResult = await queryOne("SELECT date('now', 'weekday 0', '-14 days') as date");
-      const endResult = await queryOne("SELECT date('now', 'weekday 0', '-8 days') as date");
-      periodStart = startResult.date;
-      periodEnd = endResult.date;
+      // last 7 days (from 7 days ago up to yesterday)
+      const end = new Date();
+      end.setDate(end.getDate() - 1);
+      const start = new Date();
+      start.setDate(start.getDate() - 7);
+      periodStart = formatDate(start);
+      periodEnd = formatDate(end);
       dateFilter = `AND items.created_at >= date('${periodStart}') AND items.created_at < date('${periodEnd}')`;
     } else if (period_type === 'month') {
-      // Last month
-      const startResult = await queryOne("SELECT date('now', 'start of month', '-1 month') as date");
-      const endResult = await queryOne("SELECT date('now', 'start of month') as date");
-      periodStart = startResult.date;
-      periodEnd = endResult.date;
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 1);
+      periodStart = formatDate(start);
+      periodEnd = formatDate(end);
       dateFilter = `AND items.created_at >= date('${periodStart}') AND items.created_at < date('${periodEnd}')`;
     } else {
       return res.status(400).json({ error: 'Invalid period_type' });
@@ -237,7 +247,7 @@ app.post('/api/hall-of-fame/save', async (req, res) => {
       FROM users
       LEFT JOIN items ON users.id = items.user_id ${dateFilter}
       GROUP BY users.id
-      HAVING total > 0
+      HAVING COALESCE(SUM(items.price), 0) > 0
       ORDER BY total DESC
       LIMIT 1
     `);
@@ -348,12 +358,14 @@ app.get('/api/groups/:id', async (req, res) => {
     const group = await queryOne('SELECT * FROM groups WHERE id = $1', [req.params.id]);
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
+    const weekDateCondition = "items.created_at >= (now() - INTERVAL '7 days')";
+
     const members = await query(`
       SELECT
         users.id,
         users.nickname as name,
         COALESCE(SUM(CASE
-          WHEN items.created_at >= date('now', 'weekday 0', '-7 days')
+          WHEN ${weekDateCondition}
           THEN items.price ELSE 0 END), 0) as weekly_total,
         group_members.joined_at
       FROM group_members
