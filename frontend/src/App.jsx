@@ -21,8 +21,11 @@ const api = {
 function App() {
   const [user, setUser] = useState(null);
   const [authMode, setAuthMode] = useState('login');
-  const [authForm, setAuthForm] = useState({ username: '', password: '', nickname: '', groupCode: '' });
+  const [authForm, setAuthForm] = useState({ email: '', password: '', nickname: '', groupCode: '', code: '' });
   const [authError, setAuthError] = useState('');
+  const [registerStep, setRegisterStep] = useState(1);
+  const [forgotStep, setForgotStep] = useState(1);
+  const [codeSending, setCodeSending] = useState(false);
   const [items, setItems] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [newItem, setNewItem] = useState({ name: '', price: '' });
@@ -42,6 +45,8 @@ function App() {
   const [stockIndex, setStockIndex] = useState(0);
   const [showNicknameModal, setShowNicknameModal] = useState(false);
   const [newNickname, setNewNickname] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: '', new: '' });
 
   useEffect(() => {
     const stored = localStorage.getItem('patience-lion-user');
@@ -59,13 +64,38 @@ function App() {
       const userItems = await api.get(`/items/${userId}`);
       setItems(userItems.map(item => ({ ...item, date: item.created_at })));
     } catch (e) { console.error(e); }
+    try {
+      const rankData = await api.get('/rankings?period=week');
+      setRankings(rankData);
+    } catch (e) { console.error(e); }
     setIsLoading(false);
+  };
+
+  const sendCode = async (type) => {
+    if (!authForm.email) { setAuthError('이메일을 입력해주세요'); return; }
+    setCodeSending(true);
+    setAuthError('');
+    try {
+      await api.post('/auth/send-code', { email: authForm.email, type });
+      if (type === 'register') setRegisterStep(2);
+      else setForgotStep(2);
+    } catch (e) { setAuthError(e.message); }
+    setCodeSending(false);
+  };
+
+  const verifyCode = async () => {
+    if (!authForm.code) { setAuthError('인증번호를 입력해주세요'); return; }
+    setAuthError('');
+    try {
+      await api.post('/auth/verify-code', { email: authForm.email, code: authForm.code, type: 'register' });
+      setRegisterStep(3);
+    } catch (e) { setAuthError(e.message); }
   };
 
   const handleLogin = async () => {
     setAuthError('');
     try {
-      const userData = await api.post('/auth/login', { username: authForm.username, password: authForm.password });
+      const userData = await api.post('/auth/login', { email: authForm.email, password: authForm.password });
       localStorage.setItem('patience-lion-user', JSON.stringify(userData));
       setUser(userData);
       loadUserData(userData.id);
@@ -76,9 +106,10 @@ function App() {
     setAuthError('');
     try {
       const userData = await api.post('/auth/register', {
-        username: authForm.username,
+        email: authForm.email,
         password: authForm.password,
         nickname: authForm.nickname,
+        code: authForm.code,
         groupCode: authForm.groupCode,
       });
       localStorage.setItem('patience-lion-user', JSON.stringify(userData));
@@ -91,11 +122,33 @@ function App() {
     } catch (e) { setAuthError(e.message); }
   };
 
+  const handleResetPassword = async () => {
+    setAuthError('');
+    if (!authForm.code || !authForm.password) {
+      setAuthError('인증번호와 새 비밀번호를 입력해주세요');
+      return;
+    }
+    try {
+      await api.post('/auth/reset-password', {
+        email: authForm.email,
+        code: authForm.code,
+        newPassword: authForm.password,
+      });
+      alert('비밀번호가 변경되었어요! 로그인해주세요.');
+      setAuthMode('login');
+      setForgotStep(1);
+      setAuthForm({ ...authForm, password: '', code: '' });
+    } catch (e) { setAuthError(e.message); }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('patience-lion-user');
     setUser(null);
     setItems([]);
-    setAuthForm({ username: '', password: '', nickname: '', groupCode: '' });
+    setRankings([]);
+    setAuthForm({ email: '', password: '', nickname: '', groupCode: '', code: '' });
+    setRegisterStep(1);
+    setForgotStep(1);
   };
 
   const changeNickname = async () => {
@@ -107,6 +160,19 @@ function App() {
       localStorage.setItem('patience-lion-user', JSON.stringify(updated));
       setShowNicknameModal(false);
       setNewNickname('');
+    } catch (e) { alert('변경 실패: ' + e.message); }
+  };
+
+  const changePassword = async () => {
+    if (!passwordForm.current || !passwordForm.new) return;
+    try {
+      await api.patch(`/users/${user.id}/password`, {
+        currentPassword: passwordForm.current,
+        newPassword: passwordForm.new,
+      });
+      alert('비밀번호가 변경되었어요!');
+      setShowPasswordModal(false);
+      setPasswordForm({ current: '', new: '' });
     } catch (e) { alert('변경 실패: ' + e.message); }
   };
 
@@ -262,20 +328,78 @@ function App() {
           <h1 className="text-2xl font-bold text-gray-800">참고 사자</h1>
           <p className="text-gray-500 text-sm">참고, 아낀 돈으로 주식 사자!</p>
         </div>
-        <div className="flex mb-6 bg-gray-100 rounded-xl p-1">
-          <button onClick={() => { setAuthMode('login'); setAuthError(''); }} className={`flex-1 py-2 rounded-lg text-sm font-medium ${authMode === 'login' ? 'bg-white shadow text-amber-600' : 'text-gray-500'}`}>로그인</button>
-          <button onClick={() => { setAuthMode('register'); setAuthError(''); }} className={`flex-1 py-2 rounded-lg text-sm font-medium ${authMode === 'register' ? 'bg-white shadow text-amber-600' : 'text-gray-500'}`}>회원가입</button>
-        </div>
+
+        {authMode !== 'forgot' ? (
+          <div className="flex mb-6 bg-gray-100 rounded-xl p-1">
+            <button onClick={() => { setAuthMode('login'); setAuthError(''); setRegisterStep(1); }} className={`flex-1 py-2 rounded-lg text-sm font-medium ${authMode === 'login' ? 'bg-white shadow text-amber-600' : 'text-gray-500'}`}>로그인</button>
+            <button onClick={() => { setAuthMode('register'); setAuthError(''); setRegisterStep(1); }} className={`flex-1 py-2 rounded-lg text-sm font-medium ${authMode === 'register' ? 'bg-white shadow text-amber-600' : 'text-gray-500'}`}>회원가입</button>
+          </div>
+        ) : (
+          <button onClick={() => { setAuthMode('login'); setAuthError(''); setForgotStep(1); }} className="text-sm text-gray-500 mb-4 block">← 로그인으로 돌아가기</button>
+        )}
+
         <div className="space-y-3">
-          <input type="text" value={authForm.username} onChange={(e) => setAuthForm({ ...authForm, username: e.target.value })} placeholder="아이디" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" />
-          <input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} placeholder="비밀번호" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" onKeyPress={(e) => e.key === 'Enter' && authMode === 'login' && handleLogin()} />
-          {authMode === 'register' && <>
+          {/* 로그인 */}
+          {authMode === 'login' && <>
+            <input type="email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} placeholder="이메일" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" />
+            <input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} placeholder="비밀번호" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" onKeyPress={(e) => e.key === 'Enter' && handleLogin()} />
+          </>}
+
+          {/* 회원가입 Step 1: 이메일 */}
+          {authMode === 'register' && registerStep === 1 && (
+            <input type="email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} placeholder="이메일" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" onKeyPress={(e) => e.key === 'Enter' && sendCode('register')} />
+          )}
+
+          {/* 회원가입 Step 2: 인증번호 */}
+          {authMode === 'register' && registerStep === 2 && <>
+            <div className="bg-gray-50 p-3 rounded-xl text-sm text-gray-600">{authForm.email}</div>
+            <input type="text" value={authForm.code} onChange={(e) => setAuthForm({ ...authForm, code: e.target.value })} placeholder="인증번호 6자리" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-center text-lg tracking-widest" maxLength={6} autoFocus onKeyPress={(e) => e.key === 'Enter' && verifyCode()} />
+          </>}
+
+          {/* 회원가입 Step 3: 비밀번호 + 닉네임 */}
+          {authMode === 'register' && registerStep === 3 && <>
+            <div className="bg-green-50 p-3 rounded-xl text-sm text-green-600 text-center">이메일 인증 완료!</div>
+            <input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} placeholder="비밀번호 (4자 이상)" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" />
             <input type="text" value={authForm.nickname} onChange={(e) => setAuthForm({ ...authForm, nickname: e.target.value })} placeholder="닉네임 (랭킹에 표시)" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" />
             <input type="text" value={authForm.groupCode} onChange={(e) => setAuthForm({ ...authForm, groupCode: e.target.value.toUpperCase() })} placeholder="그룹 참여코드 (선택)" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-center tracking-widest" maxLength={6} onKeyPress={(e) => e.key === 'Enter' && handleRegister()} />
           </>}
+
+          {/* 비밀번호 찾기 Step 1: 이메일 */}
+          {authMode === 'forgot' && forgotStep === 1 && (
+            <input type="email" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} placeholder="가입한 이메일" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" onKeyPress={(e) => e.key === 'Enter' && sendCode('reset')} />
+          )}
+
+          {/* 비밀번호 찾기 Step 2: 인증번호 + 새 비밀번호 */}
+          {authMode === 'forgot' && forgotStep === 2 && <>
+            <div className="bg-gray-50 p-3 rounded-xl text-sm text-gray-600">{authForm.email}</div>
+            <input type="text" value={authForm.code} onChange={(e) => setAuthForm({ ...authForm, code: e.target.value })} placeholder="인증번호 6자리" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-center text-lg tracking-widest" maxLength={6} autoFocus />
+            <input type="password" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} placeholder="새 비밀번호 (4자 이상)" className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500" onKeyPress={(e) => e.key === 'Enter' && handleResetPassword()} />
+          </>}
         </div>
+
         {authError && <p className="text-red-500 text-sm mt-3 text-center">{authError}</p>}
-        <button onClick={authMode === 'login' ? handleLogin : handleRegister} className="w-full mt-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold">{authMode === 'login' ? '로그인' : '가입하기'}</button>
+
+        {authMode === 'login' && (
+          <>
+            <button onClick={handleLogin} className="w-full mt-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold">로그인</button>
+            <button onClick={() => { setAuthMode('forgot'); setAuthError(''); setForgotStep(1); }} className="w-full mt-2 text-sm text-gray-500 hover:text-amber-600">비밀번호를 잊으셨나요?</button>
+          </>
+        )}
+        {authMode === 'register' && registerStep === 1 && (
+          <button onClick={() => sendCode('register')} disabled={codeSending} className="w-full mt-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold disabled:opacity-50">{codeSending ? '전송 중...' : '인증번호 받기'}</button>
+        )}
+        {authMode === 'register' && registerStep === 2 && (
+          <button onClick={verifyCode} className="w-full mt-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold">인증번호 확인</button>
+        )}
+        {authMode === 'register' && registerStep === 3 && (
+          <button onClick={handleRegister} disabled={!authForm.password || !authForm.nickname} className="w-full mt-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold disabled:opacity-50">가입하기</button>
+        )}
+        {authMode === 'forgot' && forgotStep === 1 && (
+          <button onClick={() => sendCode('reset')} disabled={codeSending} className="w-full mt-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold disabled:opacity-50">{codeSending ? '전송 중...' : '인증번호 받기'}</button>
+        )}
+        {authMode === 'forgot' && forgotStep === 2 && (
+          <button onClick={handleResetPassword} className="w-full mt-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold">비밀번호 변경</button>
+        )}
       </div>
     </div>
   );
@@ -290,7 +414,7 @@ function App() {
           </div>
           <div className="flex items-center gap-2">
             {getMyRank() && <div className="bg-white/20 px-3 py-1 rounded-full text-sm">🏆 {getMyRank()}위</div>}
-            <button onClick={() => { setNewNickname(user.nickname); setShowNicknameModal(true); }} className="bg-white/20 px-3 py-1 rounded-full text-sm">닉네임</button>
+            <button onClick={() => { setNewNickname(user.nickname); setShowNicknameModal(true); }} className="bg-white/20 px-3 py-1 rounded-full text-sm">닉네임 수정</button>
             <button onClick={handleLogout} className="bg-white/20 px-3 py-1 rounded-full text-sm">로그아웃</button>
           </div>
         </div>
@@ -547,6 +671,23 @@ function App() {
             <div className="flex gap-2">
               <button onClick={() => { setShowNicknameModal(false); setNewNickname(''); }} className="flex-1 py-3 rounded-xl bg-gray-100">취소</button>
               <button onClick={changeNickname} disabled={!newNickname.trim() || newNickname.trim() === user.nickname} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white disabled:opacity-50">변경하기</button>
+            </div>
+            <button onClick={() => { setShowNicknameModal(false); setShowPasswordModal(true); }} className="w-full mt-3 text-sm text-gray-500 hover:text-amber-600">🔒 비밀번호 변경</button>
+          </div>
+        </div>
+      )}
+
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+            <h2 className="text-xl font-bold text-gray-700 mb-4 text-center">🔒 비밀번호 변경</h2>
+            <div className="space-y-3">
+              <input type="password" value={passwordForm.current} onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })} placeholder="현재 비밀번호" className="w-full p-3 border rounded-xl" autoFocus />
+              <input type="password" value={passwordForm.new} onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })} placeholder="새 비밀번호 (4자 이상)" className="w-full p-3 border rounded-xl" onKeyPress={(e) => e.key === 'Enter' && changePassword()} />
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => { setShowPasswordModal(false); setPasswordForm({ current: '', new: '' }); }} className="flex-1 py-3 rounded-xl bg-gray-100">취소</button>
+              <button onClick={changePassword} disabled={!passwordForm.current || !passwordForm.new || passwordForm.new.length < 4} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white disabled:opacity-50">변경하기</button>
             </div>
           </div>
         </div>
