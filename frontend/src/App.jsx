@@ -53,9 +53,8 @@ function App() {
   const [hallOfFame, setHallOfFame] = useState([]);
   const [stocks, setStocks] = useState([]);
   const [stockIndex, setStockIndex] = useState(0);
-  const [showNicknameModal, setShowNicknameModal] = useState(false);
+  const [showMyModal, setShowMyModal] = useState(false);
   const [newNickname, setNewNickname] = useState('');
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '' });
 
   useEffect(() => {
@@ -162,14 +161,13 @@ function App() {
   };
 
   const changeNickname = async () => {
-    if (!newNickname.trim()) return;
+    if (!newNickname.trim() || newNickname.trim() === user.nickname) return;
     try {
       const result = await api.patch(`/users/${user.id}/nickname`, { nickname: newNickname.trim() });
       const updated = { ...user, nickname: result.nickname };
       setUser(updated);
       localStorage.setItem('patience-lion-user', JSON.stringify(updated));
-      setShowNicknameModal(false);
-      setNewNickname('');
+      alert('닉네임이 변경되었어요!');
     } catch (e) { alert('변경 실패: ' + e.message); }
   };
 
@@ -181,7 +179,6 @@ function App() {
         newPassword: passwordForm.new,
       });
       alert('비밀번호가 변경되었어요!');
-      setShowPasswordModal(false);
       setPasswordForm({ current: '', new: '' });
     } catch (e) { alert('변경 실패: ' + e.message); }
   };
@@ -424,7 +421,7 @@ function App() {
           </div>
           <div className="flex items-center gap-2">
             {getMyRank() && <div className="bg-white/20 px-3 py-1 rounded-full text-sm">🏆 {getMyRank()}위</div>}
-            <button onClick={() => { setNewNickname(user.nickname); setShowNicknameModal(true); }} className="bg-white/20 px-3 py-1 rounded-full text-sm">닉네임 수정</button>
+            <button onClick={() => { setNewNickname(user.nickname); setShowMyModal(true); }} className="bg-white/20 px-3 py-1 rounded-full text-sm">MY</button>
             <button onClick={handleLogout} className="bg-white/20 px-3 py-1 rounded-full text-sm">로그아웃</button>
           </div>
         </div>
@@ -673,32 +670,32 @@ function App() {
         </div>
       )}
 
-      {showNicknameModal && (
+      {showMyModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
-            <h2 className="text-xl font-bold text-gray-700 mb-4 text-center">✏️ 닉네임 변경</h2>
-            <input type="text" value={newNickname} onChange={(e) => setNewNickname(e.target.value)} placeholder="새 닉네임" className="w-full p-3 border rounded-xl mb-4" autoFocus onKeyPress={(e) => e.key === 'Enter' && changeNickname()} />
-            <div className="flex gap-2">
-              <button onClick={() => { setShowNicknameModal(false); setNewNickname(''); }} className="flex-1 py-3 rounded-xl bg-gray-100">취소</button>
-              <button onClick={changeNickname} disabled={!newNickname.trim() || newNickname.trim() === user.nickname} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white disabled:opacity-50">변경하기</button>
+            <h2 className="text-xl font-bold text-gray-700 mb-4 text-center">MY</h2>
+            <div className="bg-gray-50 rounded-xl p-3 mb-4 text-center">
+              <p className="text-xs text-gray-500">이메일</p>
+              <p className="text-sm text-gray-700">{user.email}</p>
             </div>
-            <button onClick={() => { setShowNicknameModal(false); setShowPasswordModal(true); }} className="w-full mt-3 text-sm text-gray-500 hover:text-amber-600">🔒 비밀번호 변경</button>
-          </div>
-        </div>
-      )}
-
-      {showPasswordModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
-            <h2 className="text-xl font-bold text-gray-700 mb-4 text-center">🔒 비밀번호 변경</h2>
-            <div className="space-y-3">
-              <input type="password" value={passwordForm.current} onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })} placeholder="현재 비밀번호" className="w-full p-3 border rounded-xl" autoFocus />
-              <input type="password" value={passwordForm.new} onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })} placeholder="새 비밀번호 (4자 이상)" className="w-full p-3 border rounded-xl" onKeyPress={(e) => e.key === 'Enter' && changePassword()} />
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-2">✏️ 닉네임 수정</p>
+                <div className="flex gap-2">
+                  <input type="text" value={newNickname} onChange={(e) => setNewNickname(e.target.value)} placeholder="새 닉네임" className="flex-1 p-3 border rounded-xl" onKeyPress={(e) => e.key === 'Enter' && changeNickname()} />
+                  <button onClick={changeNickname} disabled={!newNickname.trim() || newNickname.trim() === user.nickname} className="px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm disabled:opacity-50">변경</button>
+                </div>
+              </div>
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-sm font-medium text-gray-600 mb-2">🔒 비밀번호 변경</p>
+                <div className="space-y-2">
+                  <input type="password" value={passwordForm.current} onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })} placeholder="현재 비밀번호" className="w-full p-3 border rounded-xl" />
+                  <input type="password" value={passwordForm.new} onChange={(e) => setPasswordForm({ ...passwordForm, new: e.target.value })} placeholder="새 비밀번호 (4자 이상)" className="w-full p-3 border rounded-xl" onKeyPress={(e) => e.key === 'Enter' && changePassword()} />
+                  <button onClick={changePassword} disabled={!passwordForm.current || !passwordForm.new || passwordForm.new.length < 4} className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm disabled:opacity-50">비밀번호 변경</button>
+                </div>
+              </div>
             </div>
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => { setShowPasswordModal(false); setPasswordForm({ current: '', new: '' }); }} className="flex-1 py-3 rounded-xl bg-gray-100">취소</button>
-              <button onClick={changePassword} disabled={!passwordForm.current || !passwordForm.new || passwordForm.new.length < 4} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white disabled:opacity-50">변경하기</button>
-            </div>
+            <button onClick={() => { setShowMyModal(false); setNewNickname(''); setPasswordForm({ current: '', new: '' }); }} className="w-full mt-4 py-3 rounded-xl bg-gray-100 text-gray-600">닫기</button>
           </div>
         </div>
       )}
