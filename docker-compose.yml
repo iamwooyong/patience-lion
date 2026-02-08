@@ -1,18 +1,35 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: patience-lion-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=patience
+      - POSTGRES_PASSWORD=patience1234
+      - POSTGRES_DB=patience_lion
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U patience -d patience_lion"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   patience-lion:
     build: .
     container_name: patience-lion
     restart: unless-stopped
-    expose:
-      - "3001"
-    volumes:
-      - ./data:/app/data
+    ports:
+      - "3080:3001"
     environment:
       - NODE_ENV=production
       - PORT=3001
-      - DB_PATH=/app/data/patience.db
+      - DATABASE_URL=postgres://patience:patience1234@postgres:5432/patience_lion
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   tunnel:
     image: cloudflare/cloudflared:latest
@@ -23,3 +40,6 @@ services:
       - TUNNEL_TOKEN=${TUNNEL_TOKEN}
     depends_on:
       - patience-lion
+
+volumes:
+  pgdata:
