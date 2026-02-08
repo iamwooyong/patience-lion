@@ -4,12 +4,22 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 
 const api = {
   async fetch(endpoint, options = {}) {
-    const res = await fetch(`${API_URL}/api${endpoint}`, {
-      ...options,
-      headers: { 'Content-Type': 'application/json', ...options.headers },
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'API 오류');
+    let res;
+    try {
+      res = await fetch(`${API_URL}/api${endpoint}`, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+      });
+    } catch (e) {
+      throw new Error('서버에 연결할 수 없어요');
+    }
+    let data;
+    try {
+      data = await res.json();
+    } catch (e) {
+      throw new Error(`서버 오류 (${res.status})`);
+    }
+    if (!res.ok) throw new Error(data.error || `서버 오류 (${res.status})`);
     return data;
   },
   get: (endpoint) => api.fetch(endpoint),
