@@ -160,11 +160,11 @@ app.get('/api/rankings', async (req, res) => {
 
   let dateFilter = '';
   if (period === 'day') {
-    dateFilter = "AND items.created_at >= date_trunc('day', now())";
+    dateFilter = "AND items.created_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul')";
   } else if (period === 'week') {
-    dateFilter = "AND items.created_at >= (now() - INTERVAL '7 days')";
+    dateFilter = "AND items.created_at >= (date_trunc('week', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul')";
   } else if (period === 'month') {
-    dateFilter = "AND items.created_at >= date_trunc('month', now())";
+    dateFilter = "AND items.created_at >= (date_trunc('month', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul')";
   }
 
   try {
@@ -364,10 +364,10 @@ app.get('/api/groups/:id', async (req, res) => {
         users.id,
         users.nickname as name,
         COALESCE(SUM(CASE
-          WHEN items.created_at >= date_trunc('week', now())
+          WHEN items.created_at >= (date_trunc('week', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul')
           THEN items.price ELSE 0 END), 0) as weekly_total,
         COUNT(CASE
-          WHEN items.created_at >= date_trunc('week', now())
+          WHEN items.created_at >= (date_trunc('week', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul')
           THEN 1 END) as weekly_count,
         MAX(group_members.joined_at) as joined_at
       FROM group_members
