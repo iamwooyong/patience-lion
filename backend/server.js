@@ -629,7 +629,8 @@ app.delete('/api/groups/:groupId/members/:userId', async (req, res) => {
 
 // ============ STOCKS ROUTES ============
 
-const yahooFinance = require('yahoo-finance2').default;
+const YahooFinance = require('yahoo-finance2').default;
+const yahooFinance = new YahooFinance();
 
 const STOCKS = [
   { symbol: '005930.KS', name: '삼성전자', currency: 'KRW' },
