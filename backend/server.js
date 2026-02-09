@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const path = require('path');
-const nodemailer = require('nodemailer');
 const { initializeTables, query, queryOne, execute } = require('./db');
 
 const app = express();
@@ -14,44 +13,44 @@ initializeTables().catch(err => {
   process.exit(1);
 });
 
-// Email setup (Gmail SMTP)
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-
-let transporter = null;
-if (GMAIL_USER && GMAIL_APP_PASSWORD) {
-  transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
-    },
-  });
-  console.log(`📧 Gmail SMTP 이메일 발송 설정 완료 (${GMAIL_USER})`);
+// Email setup (Resend HTTP API)
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const EMAIL_FROM = process.env.EMAIL_FROM || 'noreply@dndyd.com';
+if (RESEND_API_KEY) {
+  console.log(`📧 Resend 이메일 발송 설정 완료 (${EMAIL_FROM})`);
 } else {
-  console.warn('⚠️ GMAIL_USER / GMAIL_APP_PASSWORD가 없습니다. 인증번호가 콘솔에 출력됩니다.');
+  console.warn('⚠️ RESEND_API_KEY가 없습니다. 인증번호가 콘솔에 출력됩니다.');
 }
 
 async function sendVerificationEmail(email, code, type) {
   const subject = type === 'register' ? '[참고 사자] 회원가입 인증번호' : '[참고 사자] 비밀번호 재설정 인증번호';
   const label = type === 'register' ? '회원가입' : '비밀번호 재설정';
-  if (transporter) {
+  if (RESEND_API_KEY) {
     try {
-      await transporter.sendMail({
-        from: `참고 사자 <${GMAIL_USER}>`,
-        to: email,
-        subject,
-        html: `
-          <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #f59e0b;">🦁 참고 사자</h2>
-            <p>${label} 인증번호입니다.</p>
-            <div style="background: #fef3c7; padding: 20px; border-radius: 12px; text-align: center; margin: 20px 0;">
-              <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #d97706;">${code}</span>
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: `참고 사자 <${EMAIL_FROM}>`,
+          to: [email],
+          subject,
+          html: `
+            <div style="font-family: sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
+              <h2 style="color: #f59e0b;">🦁 참고 사자</h2>
+              <p>${label} 인증번호입니다.</p>
+              <div style="background: #fef3c7; padding: 20px; border-radius: 12px; text-align: center; margin: 20px 0;">
+                <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #d97706;">${code}</span>
+              </div>
+              <p style="color: #666; font-size: 14px;">5분 이내에 입력해주세요.</p>
             </div>
-            <p style="color: #666; font-size: 14px;">5분 이내에 입력해주세요.</p>
-          </div>
-        `,
+          `,
+        }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error(`📧 이메일 전송 실패:`, data);
+        throw new Error(data.message || '이메일 전송 실패');
+      }
       console.log(`📧 이메일 전송 성공: ${email}`);
     } catch (err) {
       console.error(`📧 이메일 전송 실패: ${err.message}`);
