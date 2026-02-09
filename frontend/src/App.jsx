@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -318,6 +318,16 @@ function App() {
   const totalSaved = filteredItems.reduce((sum, item) => sum + item.price, 0);
   const currentStock = stocks[stockIndex];
   const formatPrice = (p) => (p || 0).toLocaleString('ko-KR');
+  const stockTouchRef = useRef(null);
+  const handleStockTouchStart = (e) => { stockTouchRef.current = e.touches[0].clientX; };
+  const handleStockTouchEnd = (e) => {
+    if (stockTouchRef.current === null) return;
+    const diff = stockTouchRef.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) {
+      setStockIndex(i => diff > 0 ? (i + 1) % stocks.length : (i - 1 + stocks.length) % stocks.length);
+    }
+    stockTouchRef.current = null;
+  };
   const tabLabels = { today: '오늘', week: '이번 주', month: '이번 달' };
   const getMyRank = () => { const idx = rankings.findIndex(r => r.id === user?.id); return idx >= 0 ? idx + 1 : null; };
 
@@ -443,7 +453,16 @@ function App() {
               </div>
               {totalSaved > 0 && currentStock && currentStock.price > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-100">
-                  <div className="bg-green-50 rounded-xl p-4 text-center transition-all">
+                  <div className="bg-green-50 rounded-xl p-4 text-center transition-all relative select-none"
+                    onTouchStart={handleStockTouchStart} onTouchEnd={handleStockTouchEnd}>
+                    {stocks.length > 1 && (
+                      <>
+                        <button onClick={() => setStockIndex(i => (i - 1 + stocks.length) % stocks.length)}
+                          className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-white/70 text-gray-400 text-sm">‹</button>
+                        <button onClick={() => setStockIndex(i => (i + 1) % stocks.length)}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-white/70 text-gray-400 text-sm">›</button>
+                      </>
+                    )}
                     <p className="text-xs text-gray-500 mb-1">
                       {currentStock.name} (현재가 {currentStock.currency === 'KRW' ? `₩${formatPrice(currentStock.price)}` : `$${currentStock.price.toFixed(2)}`})
                     </p>
@@ -453,7 +472,7 @@ function App() {
                     <p className="text-sm text-gray-600 mt-1">{currentStock.name} 살 수 있어요!</p>
                     <div className="flex justify-center gap-1 mt-2">
                       {stocks.map((_, i) => (
-                        <span key={i} className={`w-1.5 h-1.5 rounded-full ${i === stockIndex ? 'bg-green-500' : 'bg-gray-300'}`} />
+                        <span key={i} className={`w-1.5 h-1.5 rounded-full cursor-pointer ${i === stockIndex ? 'bg-green-500' : 'bg-gray-300'}`} onClick={() => setStockIndex(i)} />
                       ))}
                     </div>
                   </div>
