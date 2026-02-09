@@ -630,6 +630,8 @@ app.delete('/api/groups/:groupId/members/:userId', async (req, res) => {
 
 // ============ STOCKS ROUTES ============
 
+const yahooFinance = require('yahoo-finance2').default;
+
 const STOCKS = [
   { symbol: '005930.KS', name: '삼성전자', currency: 'KRW' },
   { symbol: 'UBER', name: '우버', currency: 'USD' },
@@ -640,16 +642,8 @@ let stockCache = { data: null, updatedAt: 0 };
 const STOCK_CACHE_TTL = 10 * 60 * 1000; // 10분 캐시
 
 async function fetchOneStock(symbol) {
-  const url = `https://query2.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-  const res = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  const price = json.chart?.result?.[0]?.meta?.regularMarketPrice || 0;
-  return price;
+  const quote = await yahooFinance.quote(symbol);
+  return quote?.regularMarketPrice || 0;
 }
 
 async function fetchStockPrices() {
