@@ -39,6 +39,9 @@ function App() {
   const [items, setItems] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [newItem, setNewItem] = useState({ name: '', price: '' });
+  const [showFailModal, setShowFailModal] = useState(false);
+  const [failItem, setFailItem] = useState({ name: '', price: '' });
+  const [showFailResult, setShowFailResult] = useState(null);
   const [currentView, setCurrentView] = useState('home');
   const [activeTab, setActiveTab] = useState('today');
   const [rankingTab, setRankingTab] = useState('week');
@@ -241,6 +244,25 @@ function App() {
       setItems([{ ...item, date: item.created_at }, ...items]);
       setNewItem({ name: '', price: '' });
       setShowModal(false);
+    } catch (e) { alert('추가 실패: ' + e.message); }
+  };
+
+  const failStocks = [
+    { name: '삼성전자', price: 55000, emoji: '📱' },
+    { name: '우버', price: 115000, emoji: '🚗' },
+    { name: 'TSLL', price: 25000, emoji: '📊' },
+  ];
+
+  const addFailItem = async () => {
+    if (!failItem.name || !failItem.price) return;
+    const price = parseInt(failItem.price);
+    try {
+      const item = await api.post('/items', { user_id: user.id, name: `[못참음] ${failItem.name}`, price: -price });
+      setItems([{ ...item, date: item.created_at }, ...items]);
+      setFailItem({ name: '', price: '' });
+      setShowFailModal(false);
+      const lostShares = failStocks.map(s => ({ ...s, shares: Math.floor(price / s.price) }));
+      setShowFailResult({ amount: price, stocks: lostShares });
     } catch (e) { alert('추가 실패: ' + e.message); }
   };
 
@@ -448,8 +470,13 @@ function App() {
               </div>
               <div className="text-center py-3">
                 <p className="text-gray-500 text-sm mb-1">{tabLabels[activeTab]} 참은 금액</p>
-                <p className="text-4xl font-bold text-amber-600">₩{formatPrice(totalSaved)}</p>
-                <p className="text-gray-400 text-sm mt-1">{filteredItems.length}번 참았어요!</p>
+                <p className={`text-4xl font-bold ${totalSaved < 0 ? 'text-red-500' : 'text-amber-600'}`}>₩{formatPrice(totalSaved)}</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  {filteredItems.filter(i => i.price > 0).length}번 참았어요!
+                  {filteredItems.filter(i => i.price < 0).length > 0 && (
+                    <span className="text-red-400 ml-1">/ {filteredItems.filter(i => i.price < 0).length}번 못참음 😈</span>
+                  )}
+                </p>
               </div>
               {totalSaved > 0 && currentStock && currentStock.price > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-100">
@@ -479,15 +506,18 @@ function App() {
                 </div>
               )}
             </div>
-            <button onClick={() => setShowModal(true)} className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2"><span className="text-2xl">🦁</span> 참았다!</button>
+            <div className="flex gap-2">
+              <button onClick={() => setShowModal(true)} className="flex-[2] bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2"><span className="text-2xl">🦁</span> 참았다!</button>
+              <button onClick={() => setShowFailModal(true)} className="flex-1 bg-gradient-to-r from-red-400 to-red-500 text-white py-4 rounded-2xl font-bold text-base shadow-lg flex items-center justify-center gap-1"><span className="text-xl">😈</span> 못참았다</button>
+            </div>
             <div className="bg-white rounded-2xl shadow-lg p-4">
               <h2 className="font-bold text-gray-700 mb-3">📝 {tabLabels[activeTab]} 참은 목록</h2>
               {filteredItems.length === 0 ? <div className="text-center py-6 text-gray-400"><span className="text-3xl block mb-2">🦁</span><p className="text-sm">아직 참은 게 없어요</p></div> : (
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {filteredItems.map(item => (
-                    <div key={item.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-xl group">
-                      <div><p className="font-medium text-gray-700 text-sm">{item.name}</p><p className="text-xs text-gray-400">{new Date(item.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>
-                      <div className="flex items-center gap-2"><span className="font-bold text-amber-600 text-sm">₩{formatPrice(item.price)}</span><button onClick={() => deleteItem(item.id)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 p-1">✕</button></div>
+                    <div key={item.id} className={`flex items-center justify-between p-3 rounded-xl group ${item.price < 0 ? 'bg-red-50' : 'bg-gray-50'}`}>
+                      <div><p className={`font-medium text-sm ${item.price < 0 ? 'text-red-500' : 'text-gray-700'}`}>{item.name}</p><p className="text-xs text-gray-400">{new Date(item.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>
+                      <div className="flex items-center gap-2"><span className={`font-bold text-sm ${item.price < 0 ? 'text-red-500' : 'text-amber-600'}`}>{item.price < 0 ? `-₩${formatPrice(Math.abs(item.price))}` : `₩${formatPrice(item.price)}`}</span><button onClick={() => deleteItem(item.id)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 p-1">✕</button></div>
                     </div>
                   ))}
                 </div>
@@ -659,6 +689,42 @@ function App() {
               <button onClick={() => { setShowModal(false); setNewItem({ name: '', price: '' }); }} className="flex-1 py-3 rounded-xl bg-gray-100">취소</button>
               <button onClick={addItem} disabled={!newItem.name || !newItem.price} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white disabled:opacity-50">참았다! 🦁</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showFailModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+            <div className="text-center mb-4"><span className="text-5xl">😈</span><h2 className="text-xl font-bold text-gray-700 mt-2">뭘 못참았어...?</h2></div>
+            <div className="space-y-4">
+              <input type="text" value={failItem.name} onChange={(e) => setFailItem({...failItem, name: e.target.value})} placeholder="예: 스타벅스 라떼" className="w-full p-3 border rounded-xl" autoFocus />
+              <input type="number" value={failItem.price} onChange={(e) => setFailItem({...failItem, price: e.target.value})} placeholder="가격" className="w-full p-3 border rounded-xl" />
+              <div className="flex flex-wrap gap-2">
+                {[5000, 10000, 15000, 30000].map(p => <button key={p} onClick={() => setFailItem({...failItem, price: p.toString()})} className="px-3 py-1 bg-gray-100 rounded-full text-sm">₩{formatPrice(p)}</button>)}
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button onClick={() => { setShowFailModal(false); setFailItem({ name: '', price: '' }); }} className="flex-1 py-3 rounded-xl bg-gray-100">취소</button>
+              <button onClick={addFailItem} disabled={!failItem.name || !failItem.price} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-red-400 to-red-500 text-white disabled:opacity-50">못참았다... 😈</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFailResult && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
+            <span className="text-6xl block mb-3">😭</span>
+            <h2 className="text-xl font-bold text-gray-700 mb-2">앗... ₩{formatPrice(showFailResult.amount)} 날림</h2>
+            <div className="space-y-2 my-4">
+              {showFailResult.stocks.map(s => (
+                <div key={s.name} className="bg-red-50 px-4 py-2 rounded-xl text-sm">
+                  {s.emoji} {s.name} <span className="font-bold text-red-500">{s.shares > 0 ? `${s.shares}주` : '0주'}</span> 날렸어요 ㅠㅠ
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowFailResult(null)} className="w-full py-3 rounded-xl bg-gray-100 font-medium">확인 😢</button>
           </div>
         </div>
       )}
