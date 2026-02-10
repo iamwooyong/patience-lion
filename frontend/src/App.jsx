@@ -261,7 +261,7 @@ function App() {
       setItems([{ ...item, date: item.created_at }, ...items]);
       setFailItem({ name: '', price: '' });
       setShowFailModal(false);
-      const lostShares = failStocks.map(s => ({ ...s, shares: Math.floor(price / s.price) }));
+      const lostShares = failStocks.map(s => ({ ...s, shares: (price / s.price).toFixed(3) }));
       setShowFailResult({ amount: price, stocks: lostShares });
     } catch (e) { alert('추가 실패: ' + e.message); }
   };
@@ -505,6 +505,24 @@ function App() {
                   </div>
                 </div>
               )}
+              {(() => {
+                const totalFailed = filteredItems.filter(i => i.price < 0).reduce((sum, i) => sum + Math.abs(i.price), 0);
+                if (totalFailed <= 0) return null;
+                return (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <div className="bg-red-50 rounded-xl p-4 text-center">
+                      <p className="text-xs text-gray-500 mb-2">못참아서 날린 주식 ㅠㅠ</p>
+                      <div className="space-y-1">
+                        {failStocks.map(s => (
+                          <p key={s.name} className="text-sm">
+                            {s.emoji} {s.name} <span className="font-bold text-red-500">{(totalFailed / s.price).toFixed(3)}주</span> 날렸어요 ㅠㅠ
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex gap-2">
               <button onClick={() => setShowModal(true)} className="flex-[2] bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2"><span className="text-2xl">🦁</span> 참았다!</button>
@@ -720,7 +738,7 @@ function App() {
             <div className="space-y-2 my-4">
               {showFailResult.stocks.map(s => (
                 <div key={s.name} className="bg-red-50 px-4 py-2 rounded-xl text-sm">
-                  {s.emoji} {s.name} <span className="font-bold text-red-500">{s.shares > 0 ? `${s.shares}주` : '0주'}</span> 날렸어요 ㅠㅠ
+                  {s.emoji} {s.name} <span className="font-bold text-red-500">{s.shares}주</span> 날렸어요 ㅠㅠ
                 </div>
               ))}
             </div>
