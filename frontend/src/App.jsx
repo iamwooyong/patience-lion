@@ -67,6 +67,14 @@ function App() {
     } else {
       setIsLoading(false);
     }
+    // URL에서 그룹코드 자동 입력
+    const params = new URLSearchParams(window.location.search);
+    const groupCode = params.get('groupCode');
+    if (groupCode) {
+      setAuthForm(prev => ({ ...prev, groupCode: groupCode.toUpperCase() }));
+      setAuthMode('register');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, []);
 
   const loadUserData = async (userId) => {
@@ -304,7 +312,7 @@ function App() {
   };
 
   const shareGroup = async (code) => {
-    const text = `참고 사자에서 같이 절약 경쟁하자!\n\n접속 주소:\nhttps://lion.dndyd.com/\n\n그룹 참여 코드: ${code}\n\n가입 후 그룹 탭에서 "코드로 참여" 누르고 위 코드 입력하면 돼!`;
+    const text = `참고 사자에서 같이 절약 경쟁하자!\n\n가입 링크 (그룹코드 자동입력):\nhttps://lion.dndyd.com/?groupCode=${code}\n\n또는 직접 접속 후 그룹 참여 코드 입력: ${code}`;
     if (navigator.share) {
       try { await navigator.share({ title: '참고 사자 그룹 초대', text }); } catch {}
     } else {
