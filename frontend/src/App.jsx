@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -54,8 +54,6 @@ function App() {
   const [joinCode, setJoinCode] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [hallOfFame, setHallOfFame] = useState([]);
-  const [stocks, setStocks] = useState([]);
-  const [stockIndex, setStockIndex] = useState(0);
   const [showMyModal, setShowMyModal] = useState(false);
   const [newNickname, setNewNickname] = useState('');
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '' });
@@ -208,15 +206,7 @@ function App() {
     if (user && currentView === 'ranking') loadHallOfFame();
   }, [user, currentView, loadHallOfFame]);
 
-  useEffect(() => {
-    api.get('/stocks').then(setStocks).catch(() => {});
-  }, []);
 
-  useEffect(() => {
-    if (stocks.length <= 1) return;
-    const timer = setInterval(() => setStockIndex(i => (i + 1) % stocks.length), 5000);
-    return () => clearInterval(timer);
-  }, [stocks.length]);
 
   const loadGroups = useCallback(async () => {
     if (!user) return;
@@ -338,18 +328,7 @@ function App() {
 
   const filteredItems = getFilteredItems();
   const totalSaved = filteredItems.reduce((sum, item) => sum + item.price, 0);
-  const currentStock = stocks[stockIndex];
   const formatPrice = (p) => (p || 0).toLocaleString('ko-KR');
-  const stockTouchRef = useRef(null);
-  const handleStockTouchStart = (e) => { stockTouchRef.current = e.touches[0].clientX; };
-  const handleStockTouchEnd = (e) => {
-    if (stockTouchRef.current === null) return;
-    const diff = stockTouchRef.current - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 40) {
-      setStockIndex(i => diff > 0 ? (i + 1) % stocks.length : (i - 1 + stocks.length) % stocks.length);
-    }
-    stockTouchRef.current = null;
-  };
   const tabLabels = { today: '오늘', week: '이번 주', month: '이번 달' };
   const getMyRank = () => { const idx = rankings.findIndex(r => r.id === user?.id); return idx >= 0 ? idx + 1 : null; };
 
@@ -478,51 +457,20 @@ function App() {
                   )}
                 </p>
               </div>
-              {totalSaved > 0 && currentStock && currentStock.price > 0 && (
+              {totalSaved !== 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-100">
-                  <div className="bg-green-50 rounded-xl p-4 text-center transition-all relative select-none"
-                    onTouchStart={handleStockTouchStart} onTouchEnd={handleStockTouchEnd}>
-                    {stocks.length > 1 && (
-                      <>
-                        <button onClick={() => setStockIndex(i => (i - 1 + stocks.length) % stocks.length)}
-                          className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-white/70 text-gray-400 text-sm">‹</button>
-                        <button onClick={() => setStockIndex(i => (i + 1) % stocks.length)}
-                          className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full bg-white/70 text-gray-400 text-sm">›</button>
-                      </>
-                    )}
-                    <p className="text-xs text-gray-500 mb-1">
-                      {currentStock.name} (현재가 {currentStock.currency === 'KRW' ? `₩${formatPrice(currentStock.price)}` : `$${currentStock.price.toFixed(2)}`})
-                    </p>
-                    <p className="text-xl font-bold text-green-600">
-                      {(currentStock.currency === 'KRW' ? totalSaved / currentStock.price : totalSaved / (currentStock.price * 1450)).toFixed(3)}주
-                    </p>
-                    <p className="text-sm text-gray-600 mt-1">{currentStock.name} 살 수 있어요!</p>
-                    <div className="flex justify-center gap-1 mt-2">
-                      {stocks.map((_, i) => (
-                        <span key={i} className={`w-1.5 h-1.5 rounded-full cursor-pointer ${i === stockIndex ? 'bg-green-500' : 'bg-gray-300'}`} onClick={() => setStockIndex(i)} />
+                  <div className={`${totalSaved > 0 ? 'bg-green-50' : 'bg-red-50'} rounded-xl p-4 text-center`}>
+                    <p className="text-xs text-gray-500 mb-2">{totalSaved > 0 ? '참아서 득 한 주식' : '못참아서 잃은 주식 ㅠㅠ'}</p>
+                    <div className="space-y-1">
+                      {failStocks.map(s => (
+                        <p key={s.name} className="text-sm">
+                          {s.emoji} {s.name} <span className={`font-bold ${totalSaved > 0 ? 'text-green-600' : 'text-red-500'}`}>{(Math.abs(totalSaved) / s.price).toFixed(3)}주</span> {totalSaved > 0 ? '득 했어요!' : '잃었어요 ㅠㅠ'}
+                        </p>
                       ))}
                     </div>
                   </div>
                 </div>
               )}
-              {(() => {
-                const totalFailed = filteredItems.filter(i => i.price < 0).reduce((sum, i) => sum + Math.abs(i.price), 0);
-                if (totalFailed <= 0) return null;
-                return (
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <div className="bg-red-50 rounded-xl p-4 text-center">
-                      <p className="text-xs text-gray-500 mb-2">못참아서 날린 주식 ㅠㅠ</p>
-                      <div className="space-y-1">
-                        {failStocks.map(s => (
-                          <p key={s.name} className="text-sm">
-                            {s.emoji} {s.name} <span className="font-bold text-red-500">{(totalFailed / s.price).toFixed(3)}주</span> 날렸어요 ㅠㅠ
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
             <div className="flex gap-2">
               <button onClick={() => setShowModal(true)} className="flex-[2] bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 rounded-2xl font-bold text-lg shadow-lg flex items-center justify-center gap-2"><span className="text-2xl">🦁</span> 참았다!</button>
