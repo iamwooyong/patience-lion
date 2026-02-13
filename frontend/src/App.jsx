@@ -57,6 +57,11 @@ function App() {
   const [showMyModal, setShowMyModal] = useState(false);
   const [newNickname, setNewNickname] = useState('');
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '' });
+  const [stockPrices, setStockPrices] = useState([
+    { name: '삼성전자', price: 55000, emoji: '📱', symbol: '005930.KS' },
+    { name: '우버', price: 115000, emoji: '🚗', symbol: 'UBER' },
+    { name: 'TSLL', price: 25000, emoji: '📊', symbol: 'TSLL' },
+  ]);
 
   useEffect(() => {
     const stored = localStorage.getItem('patience-lion-user');
@@ -75,7 +80,25 @@ function App() {
       setAuthMode('register');
       window.history.replaceState({}, '', window.location.pathname);
     }
+    // 주식 가격 로드
+    loadStockPrices();
   }, []);
+
+  const loadStockPrices = async () => {
+    try {
+      const stocks = await api.get('/stocks');
+      const stocksWithEmoji = stocks.map(s => {
+        let emoji = '📈';
+        if (s.name === '삼성전자') emoji = '📱';
+        else if (s.name === '우버') emoji = '🚗';
+        else if (s.name === 'TSLL') emoji = '📊';
+        return { ...s, emoji };
+      });
+      setStockPrices(stocksWithEmoji);
+    } catch (e) {
+      console.error('주식 가격 로드 실패:', e);
+    }
+  };
 
   const loadUserData = async (userId) => {
     try {
@@ -245,12 +268,6 @@ function App() {
     } catch (e) { alert('추가 실패: ' + e.message); }
   };
 
-  const failStocks = [
-    { name: '삼성전자', price: 55000, emoji: '📱' },
-    { name: '우버', price: 115000, emoji: '🚗' },
-    { name: 'TSLL', price: 25000, emoji: '📊' },
-  ];
-
   const addFailItem = async () => {
     if (!failItem.name || !failItem.price) return;
     const price = parseInt(failItem.price);
@@ -259,7 +276,7 @@ function App() {
       setItems([{ ...item, date: item.created_at }, ...items]);
       setFailItem({ name: '', price: '' });
       setShowFailModal(false);
-      const lostShares = failStocks.map(s => ({ ...s, shares: (price / s.price).toFixed(3) }));
+      const lostShares = stockPrices.map(s => ({ ...s, shares: (price / s.price).toFixed(3) }));
       setShowFailResult({ amount: price, stocks: lostShares });
     } catch (e) { alert('추가 실패: ' + e.message); }
   };
@@ -470,7 +487,7 @@ function App() {
                   <div className={`${totalSaved > 0 ? 'bg-green-50' : 'bg-red-50'} rounded-xl p-4 text-center`}>
                     <p className="text-xs text-gray-500 mb-2">{totalSaved > 0 ? '참아서 득 한 주식' : '못참아서 잃은 주식 ㅠㅠ'}</p>
                     <div className="space-y-1">
-                      {failStocks.map(s => (
+                      {stockPrices.map(s => (
                         <p key={s.name} className="text-sm">
                           {s.emoji} {s.name} <span className={`font-bold ${totalSaved > 0 ? 'text-green-600' : 'text-red-500'}`}>{(Math.abs(totalSaved) / s.price).toFixed(3)}주</span> {totalSaved > 0 ? '득 했어요!' : '잃었어요 ㅠㅠ'}
                         </p>
