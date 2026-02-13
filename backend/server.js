@@ -630,20 +630,17 @@ app.delete('/api/groups/:groupId/members/:userId', async (req, res) => {
 // ============ STOCKS ROUTES ============
 
 const axios = require('axios');
-const yahooFinance = require('yahoo-finance2').default;
-
-const USD_TO_KRW = 1330; // 고정 환율 (정기적으로 업데이트 필요)
 
 const STOCKS = [
-  { code: '005930', name: '삼성전자', type: 'domestic', fallbackPrice: 55000 },
-  { code: 'UBER', name: '우버', type: 'overseas', fallbackPrice: 93000 },
-  { code: 'TSLL', name: 'TSLL', type: 'overseas', fallbackPrice: 16000 },
+  { code: '005930', name: '삼성전자', fallbackPrice: 181200 },
+  { code: 'UBER', name: '우버', fallbackPrice: 93000 },
+  { code: 'TSLL', name: 'TSLL', fallbackPrice: 16000 },
 ];
 
 let stockCache = { data: null, updatedAt: 0 };
 const STOCK_CACHE_TTL = 10 * 60 * 1000; // 10분 캐시
 
-async function fetchDomesticStock(code) {
+async function fetchStockPrice(code) {
   try {
     const url = `https://m.stock.naver.com/api/stock/${code}/basic`;
     const response = await axios.get(url, {
@@ -658,19 +655,7 @@ async function fetchDomesticStock(code) {
     const price = parseFloat(priceStr.replace(/,/g, ''));
     return price || 0;
   } catch (err) {
-    console.error(`Domestic stock ${code} fetch error: ${err.message}`);
-    return 0;
-  }
-}
-
-async function fetchOverseasStock(symbol) {
-  try {
-    const quote = await yahooFinance.quote(symbol);
-    const usdPrice = quote?.regularMarketPrice || 0;
-    // USD를 KRW로 환산
-    return Math.round(usdPrice * USD_TO_KRW);
-  } catch (err) {
-    console.error(`Overseas stock ${symbol} fetch error: ${err.message}`);
+    console.error(`Stock ${code} fetch error: ${err.message}`);
     return 0;
   }
 }
@@ -682,11 +667,7 @@ async function fetchStockPrices() {
   }
 
   try {
-    const prices = await Promise.all(STOCKS.map(stock =>
-      stock.type === 'domestic'
-        ? fetchDomesticStock(stock.code)
-        : fetchOverseasStock(stock.code)
-    ));
+    const prices = await Promise.all(STOCKS.map(stock => fetchStockPrice(stock.code)));
 
     const result = STOCKS.map((stock, i) => ({
       symbol: stock.code,
