@@ -633,9 +633,9 @@ const YahooFinance = require('yahoo-finance2').default;
 const yahooFinance = new YahooFinance();
 
 const STOCKS = [
-  { symbol: '005930.KS', name: '삼성전자', currency: 'KRW' },
-  { symbol: 'UBER', name: '우버', currency: 'USD' },
-  { symbol: 'TSLL', name: 'TSLL', currency: 'USD' },
+  { symbol: '005930.KS', name: '삼성전자', currency: 'KRW', fallbackPrice: 55000 },
+  { symbol: 'UBER', name: '우버', currency: 'USD', fallbackPrice: 70 },
+  { symbol: 'TSLL', name: 'TSLL', currency: 'USD', fallbackPrice: 12 },
 ];
 
 let stockCache = { data: null, updatedAt: 0 };
@@ -661,17 +661,15 @@ async function fetchStockPrices() {
     const result = STOCKS.map((stock, i) => ({
       symbol: stock.symbol,
       name: stock.name,
-      price: prices[i],
+      price: prices[i] > 0 ? prices[i] : stock.fallbackPrice,
       currency: stock.currency,
     }));
 
-    if (prices.some(p => p > 0)) {
-      stockCache = { data: result, updatedAt: now };
-    }
+    stockCache = { data: result, updatedAt: now };
     return result;
   } catch (err) {
     console.error('Stock fetch error:', err.message);
-    return stockCache.data || STOCKS.map(s => ({ ...s, price: 0 }));
+    return stockCache.data || STOCKS.map(s => ({ ...s, price: s.fallbackPrice }));
   }
 }
 

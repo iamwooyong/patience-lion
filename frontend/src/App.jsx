@@ -94,7 +94,11 @@ function App() {
         else if (s.name === 'TSLL') emoji = '📊';
         return { ...s, emoji };
       });
-      setStockPrices(stocksWithEmoji);
+      // price가 0인 주식은 제외하고 업데이트
+      const validStocks = stocksWithEmoji.filter(s => s.price > 0);
+      if (validStocks.length === stocksWithEmoji.length) {
+        setStockPrices(stocksWithEmoji);
+      }
     } catch (e) {
       console.error('주식 가격 로드 실패:', e);
     }
