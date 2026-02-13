@@ -630,19 +630,22 @@ app.delete('/api/groups/:groupId/members/:userId', async (req, res) => {
 // ============ STOCKS ROUTES ============
 
 const axios = require('axios');
+const yahooFinance = require('yahoo-finance2').default;
+
+const USD_TO_KRW = 1330; // 고정 환율 (정기적으로 업데이트 필요)
 
 const STOCKS = [
   { code: '005930', name: '삼성전자', type: 'domestic', fallbackPrice: 55000 },
-  { code: 'UBER.N', name: '우버', type: 'overseas', fallbackPrice: 93000 },
-  { code: 'TSLL.O', name: 'TSLL', type: 'overseas', fallbackPrice: 16000 },
+  { code: 'UBER', name: '우버', type: 'overseas', fallbackPrice: 93000 },
+  { code: 'TSLL', name: 'TSLL', type: 'overseas', fallbackPrice: 16000 },
 ];
 
 let stockCache = { data: null, updatedAt: 0 };
 const STOCK_CACHE_TTL = 10 * 60 * 1000; // 10분 캐시
 
-async function fetchOneStock(stock) {
+async function fetchDomesticStock(code) {
   try {
-    const url = `https://m.stock.naver.com/api/stock/${stock.code}/basic`;
+    const url = `https://m.stock.naver.com/api/stock/${code}/basic`;
     const response = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15',
@@ -650,11 +653,24 @@ async function fetchOneStock(stock) {
       timeout: 5000,
     });
 
-    // 국내주식: closePrice, 해외주식: closePrice (원화 환산된 가격)
-    const price = response.data?.closePrice || response.data?.stockEndPrice || 0;
-    return parseFloat(price) || 0;
+    // closePrice는 "181,200" 같은 형식 (콤마 포함 문자열)
+    const priceStr = response.data?.closePrice || '0';
+    const price = parseFloat(priceStr.replace(/,/g, ''));
+    return price || 0;
   } catch (err) {
-    console.error(`Stock ${stock.code} fetch error: ${err.message}`);
+    console.error(`Domestic stock ${code} fetch error: ${err.message}`);
+    return 0;
+  }
+}
+
+async function fetchOverseasStock(symbol) {
+  try {
+    const quote = await yahooFinance.quote(symbol);
+    const usdPrice = quote?.regularMarketPrice || 0;
+    // USD를 KRW로 환산
+    return Math.round(usdPrice * USD_TO_KRW);
+  } catch (err) {
+    console.error(`Overseas stock ${symbol} fetch error: ${err.message}`);
     return 0;
   }
 }
@@ -666,7 +682,11 @@ async function fetchStockPrices() {
   }
 
   try {
-    const prices = await Promise.all(STOCKS.map(s => fetchOneStock(s)));
+    const prices = await Promise.all(STOCKS.map(stock =>
+      stock.type === 'domestic'
+        ? fetchDomesticStock(stock.code)
+        : fetchOverseasStock(stock.code)
+    ));
 
     const result = STOCKS.map((stock, i) => ({
       symbol: stock.code,
