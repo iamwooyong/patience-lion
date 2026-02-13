@@ -629,21 +629,34 @@ app.delete('/api/groups/:groupId/members/:userId', async (req, res) => {
 
 // ============ STOCKS ROUTES ============
 
-const YahooFinance = require('yahoo-finance2').default;
-const yahooFinance = new YahooFinance();
+const axios = require('axios');
 
 const STOCKS = [
-  { symbol: '005930.KS', name: '삼성전자', currency: 'KRW', fallbackPrice: 55000 },
-  { symbol: 'UBER', name: '우버', currency: 'USD', fallbackPrice: 70 },
-  { symbol: 'TSLL', name: 'TSLL', currency: 'USD', fallbackPrice: 12 },
+  { code: '005930', name: '삼성전자', type: 'domestic', fallbackPrice: 55000 },
+  { code: 'UBER.N', name: '우버', type: 'overseas', fallbackPrice: 93000 },
+  { code: 'TSLL.O', name: 'TSLL', type: 'overseas', fallbackPrice: 16000 },
 ];
 
 let stockCache = { data: null, updatedAt: 0 };
 const STOCK_CACHE_TTL = 10 * 60 * 1000; // 10분 캐시
 
-async function fetchOneStock(symbol) {
-  const quote = await yahooFinance.quote(symbol);
-  return quote?.regularMarketPrice || 0;
+async function fetchOneStock(stock) {
+  try {
+    const url = `https://m.stock.naver.com/api/stock/${stock.code}/basic`;
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15',
+      },
+      timeout: 5000,
+    });
+
+    // 국내주식: closePrice, 해외주식: closePrice (원화 환산된 가격)
+    const price = response.data?.closePrice || response.data?.stockEndPrice || 0;
+    return parseFloat(price) || 0;
+  } catch (err) {
+    console.error(`Stock ${stock.code} fetch error: ${err.message}`);
+    return 0;
+  }
 }
 
 async function fetchStockPrices() {
@@ -653,23 +666,20 @@ async function fetchStockPrices() {
   }
 
   try {
-    const prices = await Promise.all(STOCKS.map(s => fetchOneStock(s.symbol).catch(err => {
-      console.error(`Stock ${s.symbol} fetch error: ${err.message}`);
-      return 0;
-    })));
+    const prices = await Promise.all(STOCKS.map(s => fetchOneStock(s)));
 
     const result = STOCKS.map((stock, i) => ({
-      symbol: stock.symbol,
+      symbol: stock.code,
       name: stock.name,
-      price: prices[i] > 0 ? prices[i] : stock.fallbackPrice,
-      currency: stock.currency,
+      price: Math.round(prices[i] > 0 ? prices[i] : stock.fallbackPrice),
     }));
 
     stockCache = { data: result, updatedAt: now };
+    console.log('📊 주식 가격 업데이트:', result);
     return result;
   } catch (err) {
     console.error('Stock fetch error:', err.message);
-    return stockCache.data || STOCKS.map(s => ({ ...s, price: s.fallbackPrice }));
+    return stockCache.data || STOCKS.map(s => ({ symbol: s.code, name: s.name, price: s.fallbackPrice }));
   }
 }
 
